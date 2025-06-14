@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"io" // <-- PERBAIKAN: Impor paket `io` untuk `SeekStart`
 	"mime/multipart"
 	"path/filepath"
 
@@ -27,12 +28,13 @@ type fileService struct {
 func NewFileService(repo repository.FileRepository, cfg *config.Config) FileService {
 	return &fileService{
 		repo:        repo,
-		storagePath: "/storage",
+		storagePath: "/app/storage", // <-- PERBAIKAN: Sesuaikan dengan path di Dockerfile
 		cfg:         cfg,
 	}
 }
 
-func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader *multipart.FileHeader) (*model.FileMetadata, error) {
+// PERBAIKAN: Gunakan named return value `err` untuk menangani error dari defer file.Close()
+func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader *multipart.FileHeader) (metadata *model.FileMetadata, err error) {
 	// --- BLOK VALIDASI ---
 	// 1. Validasi Ukuran File
 	if fileHeader.Size > s.cfg.MaxFileSizeBytes {
@@ -44,7 +46,12 @@ func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file for validation: %w", err)
 	}
-	defer file.Close()
+	// PERBAIKAN: Tangani error dari `file.Close()`
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close file: %w", closeErr)
+		}
+	}()
 
 	// Deteksi tipe MIME dari konten file
 	mime, err := mimetype.DetectReader(file)
@@ -58,7 +65,10 @@ func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader
 	}
 
 	// Kembalikan file pointer ke awal setelah dibaca oleh mimetype
-	file.Seek(0, 0)
+	// PERBAIKAN: Tangani error dari `file.Seek()`
+	if _, err = file.Seek(0, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("failed to seek file to beginning: %w", err)
+	}
 
 	// --- AKHIR BLOK VALIDASI ---
 	// Generate ID unik dan path penyimpanan baru
@@ -68,15 +78,14 @@ func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader
 	storagePath := filepath.Join(s.storagePath, storageFileName)
 
 	// Buat metadata untuk disimpan di DB
-	metadata := &model.FileMetadata{
+	metadata = &model.FileMetadata{ // PERBAIKAN: Gunakan operator `=` bukan `:=` karena `metadata` sudah dideklarasikan di return signature
 		ID:           fileID,
 		OriginalName: fileHeader.Filename,
 		StoragePath:  storagePath,
-		MimeType:     fileHeader.Header.Get("Content-Type"),
+		MimeType:     mime.String(), // PERBAIKAN: Gunakan mime yang terdeteksi, bukan dari header klien
 		SizeBytes:    fileHeader.Size,
 		OwnerUserID:  &ownerID,
 	}
-	metadata.MimeType = mime.String()
 
 	// Simpan metadata ke database
 	if err := s.repo.Create(ctx, metadata); err != nil {
@@ -84,10 +93,9 @@ func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader
 	}
 
 	// Jika metadata berhasil disimpan, baru simpan file fisik.
-	// Ini adalah pola yang lebih aman.
 	// (Implementasi untuk menyimpan ke disk ada di handler untuk kesederhanaan)
 
-	return metadata, nil
+	return metadata, nil // `err` akan nil di sini jika semua berhasil
 }
 
 func (s *fileService) GetFileByID(ctx context.Context, id string) (*model.FileMetadata, error) {
