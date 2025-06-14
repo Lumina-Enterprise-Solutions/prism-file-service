@@ -20,14 +20,19 @@ func loadSecretsFromVault() {
 	if err != nil {
 		log.Fatalf("Gagal membuat klien Vault: %v", err)
 	}
-	secret, err := vaultClient.ReadSecret("secret/data/prism", "jwt_secret")
+
+	secretPath := "secret/data/prism"
+
 	if err != nil {
-		log.Fatalf("Gagal membaca jwt_secret dari Vault: %v", err)
+		log.Fatalf("Gagal membuat klien Vault: %v", err)
 	}
-	// PERBAIKAN: Tangani error dari os.Setenv
-	if err := os.Setenv("JWT_SECRET_KEY", secret); err != nil {
-		log.Fatalf("Gagal mengatur env var JWT_SECRET_KEY: %v", err)
+	jwtSecret, err := vaultClient.ReadSecret(secretPath, "jwt_secret")
+	if err != nil {
+		log.Fatalf("Gagal membaca jwt_secret dari Vault: %v. Pastikan rahasia sudah dimasukkan.", err)
 	}
+
+	os.Setenv("JWT_SECRET_KEY", jwtSecret) //nolint:errcheck
+	log.Println("Berhasil memuat JWT_SECRET_KEY dari Vault.")
 }
 
 func main() {
