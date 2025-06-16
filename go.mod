@@ -3,7 +3,7 @@ module github.com/Lumina-Enterprise-Solutions/prism-file-service
 go 1.24.3
 
 require (
-	github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.0.0
+	github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.0.1
 	github.com/gabriel-vasile/mimetype v1.4.9
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
