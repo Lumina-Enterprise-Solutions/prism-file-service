@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/model"
-	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/config"
+	fileserviceconfig "github.com/Lumina-Enterprise-Solutions/prism-file-service/config"
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/repository"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
@@ -22,10 +22,10 @@ type FileService interface {
 type fileService struct {
 	repo        repository.FileRepository
 	storagePath string
-	cfg         *config.Config
+	cfg         *fileserviceconfig.Config
 }
 
-func NewFileService(repo repository.FileRepository, cfg *config.Config) FileService {
+func NewFileService(repo repository.FileRepository, cfg *fileserviceconfig.Config) FileService {
 	return &fileService{
 		repo:        repo,
 		storagePath: "/app/storage", // <-- PERBAIKAN: Sesuaikan dengan path di Dockerfile

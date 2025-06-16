@@ -7,7 +7,7 @@ import (
 
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/auth"
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/client"
-	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/config"
+	fileserviceconfig "github.com/Lumina-Enterprise-Solutions/prism-file-service/config"
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/handler"
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/repository"
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/service"
@@ -22,23 +22,19 @@ func loadSecretsFromVault() {
 	}
 
 	secretPath := "secret/data/prism"
-
-	if err != nil {
-		log.Fatalf("Gagal membuat klien Vault: %v", err)
-	}
-	jwtSecret, err := vaultClient.ReadSecret(secretPath, "jwt_secret")
-	if err != nil {
-		log.Fatalf("Gagal membaca jwt_secret dari Vault: %v. Pastikan rahasia sudah dimasukkan.", err)
+	requiredSecrets := []string{
+		"jwt_secret",
 	}
 
-	os.Setenv("JWT_SECRET_KEY", jwtSecret) //nolint:errcheck
-	log.Println("Berhasil memuat JWT_SECRET_KEY dari Vault.")
+	if err := vaultClient.LoadSecretsToEnv(secretPath, requiredSecrets...); err != nil {
+		log.Fatalf("Gagal memuat rahasia-rahasia penting dari Vault: %v", err)
+	}
 }
 
 func main() {
 	log.Println("Starting Prism File Service...")
 	loadSecretsFromVault()
-	cfg := config.Load()
+	cfg := fileserviceconfig.Load()
 
 	databaseUrl := os.Getenv("DATABASE_URL")
 	if databaseUrl == "" {
