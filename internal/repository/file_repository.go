@@ -10,6 +10,7 @@ import (
 type FileRepository interface {
 	Create(ctx context.Context, metadata *model.FileMetadata) error
 	GetByID(ctx context.Context, id string) (*model.FileMetadata, error)
+	DeleteByID(ctx context.Context, id string) error
 }
 
 type postgresFileRepository struct {
@@ -53,4 +54,9 @@ func (r *postgresFileRepository) GetByID(ctx context.Context, id string) (*model
 		return nil, err
 	}
 	return &metadata, nil
+}
+func (r *postgresFileRepository) DeleteByID(ctx context.Context, id string) error {
+	sql := `DELETE FROM files WHERE id = $1;`
+	_, err := r.db.Exec(ctx, sql, id)
+	return err
 }

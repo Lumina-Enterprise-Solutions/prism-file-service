@@ -17,6 +17,7 @@ import (
 type FileService interface {
 	UploadFile(ctx context.Context, ownerID string, fileHeader *multipart.FileHeader) (*model.FileMetadata, error)
 	GetFileByID(ctx context.Context, id string) (*model.FileMetadata, error)
+	DeleteMetadata(ctx context.Context, id string) error
 }
 
 type fileService struct {
@@ -100,4 +101,7 @@ func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader
 
 func (s *fileService) GetFileByID(ctx context.Context, id string) (*model.FileMetadata, error) {
 	return s.repo.GetByID(ctx, id)
+}
+func (s *fileService) DeleteMetadata(ctx context.Context, id string) error {
+	return s.repo.DeleteByID(ctx, id) // Asumsi metode ini akan kita tambahkan ke repo
 }

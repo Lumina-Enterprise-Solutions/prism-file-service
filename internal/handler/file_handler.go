@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -42,9 +43,15 @@ func (h *FileHandler) UploadFile(c *gin.Context) {
 		return
 	}
 
-	// Simpan file ke disk menggunakan path dari metadata
 	if err := c.SaveUploadedFile(file, metadata.StoragePath); err != nil {
-		// TODO: Rollback - hapus entri metadata dari DB jika ini gagal
+		// Jika penyimpanan file fisik gagal, hapus metadata yang sudah terlanjur dibuat.
+		log.Printf("ERROR: Failed to save physical file %s. Rolling back metadata entry.", metadata.StoragePath)
+		if rollbackErr := h.fileService.DeleteMetadata(c.Request.Context(), metadata.ID); rollbackErr != nil {
+			log.Printf("FATAL: Failed to rollback metadata for file ID %s: %v", metadata.ID, rollbackErr)
+			// Kirim error yang lebih serius jika rollback juga gagal
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file and could not rollback metadata."})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save the file"})
 		return
 	}

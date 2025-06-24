@@ -17,6 +17,7 @@ import (
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	redis_client "github.com/redis/go-redis/v9"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
@@ -28,7 +29,7 @@ func setupDependencies(cfg *fileserviceconfig.Config) (*pgxpool.Pool, error) {
 	}
 
 	secretPath := "secret/data/prism"
-	requiredSecrets := []string{"database_url", "jwt_secret"}
+	requiredSecrets := []string{"database_url", "jwt_secret_key"}
 
 	if err := vaultClient.LoadSecretsToEnv(secretPath, requiredSecrets...); err != nil {
 		return nil, fmt.Errorf("gagal memuat rahasia-rahasia penting dari Vault: %w", err)
@@ -73,6 +74,13 @@ func main() {
 	}
 	defer dbpool.Close()
 
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "cache-redis:6379"
+	}
+	redisClient := redis_client.NewClient(&redis_client.Options{Addr: redisAddr})
+	defer redisClient.Close()
+
 	fileRepo := repository.NewPostgresFileRepository(dbpool)
 	fileService := service.NewFileService(fileRepo, cfg)
 	fileHandler := handler.NewFileHandler(fileService)
@@ -88,7 +96,7 @@ func main() {
 		fileRoutes.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "healthy"}) })
 
 		protected := fileRoutes.Group("/")
-		protected.Use(auth.JWTMiddleware())
+		protected.Use(auth.JWTMiddleware(redisClient))
 		{
 			protected.POST("/upload", fileHandler.UploadFile)
 			protected.GET("/:id", fileHandler.DownloadFile)
