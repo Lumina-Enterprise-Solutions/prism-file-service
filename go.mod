@@ -3,12 +3,13 @@ module github.com/Lumina-Enterprise-Solutions/prism-file-service
 go 1.24.3
 
 require (
-	github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.2.4
+	github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.2.5
 	github.com/gabriel-vasile/mimetype v1.4.9
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/redis/go-redis/v9 v9.10.0
+	github.com/rs/zerolog v1.34.0
 	github.com/zsais/go-gin-prometheus v0.1.0
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.61.0
 )

@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+
 	"net/http"
 	"os"
 	"strconv"
+
+	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/logger" // <-- Impor logger baru
+	"github.com/rs/zerolog/log"                                       // <-- Impor log dari zerolog
 
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/auth"
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/client"
@@ -43,8 +46,10 @@ func setupDependencies(cfg *fileserviceconfig.Config) (*pgxpool.Pool, error) {
 }
 
 func main() {
+	logger.Init()
+
 	serviceName := "prism-file-service"
-	log.Printf("Memulai %s...", serviceName)
+	log.Info().Msgf("Memulai %s...", serviceName)
 
 	cfg := fileserviceconfig.Load()
 	portStr := os.Getenv("PORT") // Akan diambil dari Consul nanti jika perlu
@@ -60,17 +65,17 @@ func main() {
 
 	tp, err := telemetry.InitTracerProvider(serviceName, jaegerEndpoint)
 	if err != nil {
-		log.Fatalf("Gagal menginisialisasi OTel tracer provider: %v", err)
+		log.Fatal().Err(err).Msg("Gagal menginisialisasi OTel tracer provider")
 	}
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
-			log.Printf("Error saat mematikan tracer provider: %v", err)
+			log.Error().Err(err).Msg("Error saat mematikan tracer provider")
 		}
 	}()
 
 	dbpool, err := setupDependencies(cfg)
 	if err != nil {
-		log.Fatalf("Gagal menginisialisasi dependensi: %v", err)
+		log.Fatal().Err(err).Msg("Gagal menginisialisasi dependensi")
 	}
 	defer dbpool.Close()
 
@@ -110,12 +115,12 @@ func main() {
 		HealthCheckURL: fmt.Sprintf("http://%s:%d/files/health", serviceName, port),
 	})
 	if err != nil {
-		log.Fatalf("Gagal mendaftarkan service ke Consul: %v", err)
+		log.Fatal().Err(err).Msg("Gagal mendaftarkan service ke Consul")
 	}
 	defer client.DeregisterService(consulClient, fmt.Sprintf("%s-%d", serviceName, port))
 
-	log.Printf("Memulai %s di port %d", serviceName, port)
+	log.Info().Msgf("Memulai %s di port %d", serviceName, port)
 	if err := router.Run(":" + portStr); err != nil {
-		log.Fatalf("Gagal menjalankan server: %v", err)
+		log.Fatal().Err(err).Msg("Gagal menjalankan server")
 	}
 }
