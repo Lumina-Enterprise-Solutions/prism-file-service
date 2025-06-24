@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	commonconfig "github.com/Lumina-Enterprise-Solutions/prism-common-libs/config"
@@ -11,6 +12,8 @@ import (
 type Config struct {
 	MaxFileSizeBytes    int64
 	AllowedMimeTypesMap map[string]bool
+	VaultAddr           string
+	VaultToken          string
 }
 
 func Load() *Config {
@@ -39,5 +42,7 @@ func Load() *Config {
 	return &Config{
 		MaxFileSizeBytes:    maxSizeBytes,
 		AllowedMimeTypesMap: allowedTypesMap,
+		VaultAddr:           os.Getenv("VAULT_ADDR"), // Env var masih cara terbaik untuk info infra
+		VaultToken:          os.Getenv("VAULT_TOKEN"),
 	}
 }

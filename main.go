@@ -23,7 +23,7 @@ import (
 )
 
 func setupDependencies(cfg *fileserviceconfig.Config) (*pgxpool.Pool, error) {
-	vaultClient, err := client.NewVaultClient()
+	vaultClient, err := client.NewVaultClient(cfg.VaultAddr, cfg.VaultToken)
 	if err != nil {
 		return nil, fmt.Errorf("gagal membuat klien Vault: %w", err)
 	}
