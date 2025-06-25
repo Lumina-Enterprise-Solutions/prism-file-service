@@ -2,7 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"net/http"
 	"os"
@@ -123,4 +127,31 @@ func main() {
 	if err := router.Run(":" + portStr); err != nil {
 		log.Fatal().Err(err).Msg("Gagal menjalankan server")
 	}
+
+	// === Tahap 2: Jalankan Server & Tangani Shutdown ===
+	srv := &http.Server{
+		Addr:    ":" + portStr,
+		Handler: router,
+	}
+
+	go func() {
+		log.Info().Str("service", "prism-file-service").Msgf("HTTP server listening on %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal().Err(err).Msg("HTTP server ListenAndServe error")
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Info().Msg("Shutdown signal received, starting graceful shutdown...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal().Err(err).Msg("Server forced to shutdown")
+	}
+
+	log.Info().Msg("Server exiting gracefully.")
 }
