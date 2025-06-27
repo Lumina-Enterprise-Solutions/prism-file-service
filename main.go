@@ -74,9 +74,16 @@ func main() {
 	defer dbpool.Close()
 
 	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" { redisAddr = "cache-redis:6379" }
+	if redisAddr == "" {
+		redisAddr = "cache-redis:6379"
+	}
 	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
-	defer redisClient.Close()
+	// LINT FIX: Check error on closing Redis client
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			serviceLogger.Error().Err(err).Msg("Failed to close Redis client gracefully")
+		}
+	}()
 
 	// === Injeksi Dependensi ===
 	fileRepo := repository.NewPostgresFileRepository(dbpool)
@@ -95,7 +102,6 @@ func main() {
 	{
 		fileRoutes.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "healthy"}) })
 
-		// Rute ini dilindungi oleh middleware JWT asli dari common-libs
 		protected := fileRoutes.Group("/")
 		protected.Use(auth.JWTMiddleware(redisClient))
 		{
@@ -112,7 +118,9 @@ func main() {
 		HealthCheckURL: fmt.Sprintf("http://localhost:%d/files/health", cfg.Port),
 	}
 	consul, err := client.RegisterService(regInfo)
-	if err != nil { serviceLogger.Fatal().Err(err).Msg("Gagal mendaftarkan service ke Consul") }
+	if err != nil {
+		serviceLogger.Fatal().Err(err).Msg("Gagal mendaftarkan service ke Consul")
+	}
 	defer client.DeregisterService(consul, regInfo.ServiceID)
 
 	srv := &http.Server{Addr: ":" + portStr, Handler: router}
@@ -131,6 +139,7 @@ func main() {
 	serviceLogger.Info().Msg("Sinyal shutdown diterima...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
 	if err := srv.Shutdown(ctx); err != nil {
 		serviceLogger.Fatal().Err(err).Msg("Server terpaksa dimatikan")
 	}
