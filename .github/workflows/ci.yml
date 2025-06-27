@@ -1,45 +1,44 @@
-# Nama workflow yang akan muncul di tab "Actions" GitHub
-name: Go CI Pipeline
+name: File Service CI
 
-# Pemicu (Triggers)
 on:
   push:
-    branches:
-    - main
-    - develop
-    - 'feature/**'
-    - 'bugfix/**'
-    - 'hotfix/**'
+    branches: [ main, develop, 'feature/**', 'bugfix/**' ]
   pull_request:
-    branches:
-    - main
-    - develop
+    branches: [ main, develop ]
 
 jobs:
-  # Nama job ini akan digunakan di Branch Protection Rules.
   build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports: [ "5432:5432" ]
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
       with:
         go-version: '1.24'
-
-    - name: Install Dependencies
+    - name: Download Go modules
       run: go mod download
-
-    - name: Run Linter
+    - name: Run linter
       uses: golangci/golangci-lint-action@v8
       with:
         version: v2.1
-    # - name: Run Unit Tests with Coverage
-    #   # Menambahkan flag -race untuk mendeteksi race conditions
-    #   run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-    # - name: Upload Coverage Report
-    #   uses: codecov/codecov-action@v4
-    #   with:
-    #     token: ${{ secrets.CODECOV_TOKEN }} # Token opsional untuk repo privat
-    #     fail_ci_if_error: true
+    - name: Run Unit Tests
+      run: go test -v -race ./...
+    - name: Run Integration Tests
+      run: go test -v -race -tags=integration ./...
+      env:
+        DATABASE_URL_TEST: postgresql://test_user:test_password@localhost:5432/test_db?sslmode=disable
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: Lumina-Enterprise-Solutions/prism-file-service

@@ -4,19 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
-	"net/http"
-	"os"
-	"strconv"
-
-	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/logger" // <-- Impor logger baru
-	"github.com/rs/zerolog/log"                                       // <-- Impor log dari zerolog
-
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/auth"
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/client"
+	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/enhanced_logger"
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/telemetry"
 	fileserviceconfig "github.com/Lumina-Enterprise-Solutions/prism-file-service/config"
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/handler"
@@ -24,7 +21,7 @@ import (
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	redis_client "github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
@@ -50,60 +47,55 @@ func setupDependencies(cfg *fileserviceconfig.Config) (*pgxpool.Pool, error) {
 }
 
 func main() {
-	logger.Init()
-
-	serviceName := "prism-file-service"
-	log.Info().Msgf("Memulai %s...", serviceName)
+	// === Inisialisasi ===
+	enhanced_logger.Init()
+	serviceLogger := enhanced_logger.WithService("prism-file-service")
 
 	cfg := fileserviceconfig.Load()
-	portStr := os.Getenv("PORT") // Akan diambil dari Consul nanti jika perlu
-	if portStr == "" {
-		portStr = "8080"
-	}
-	port, _ := strconv.Atoi(portStr)
 
-	jaegerEndpoint := os.Getenv("JAEGER_ENDPOINT") // Sama, bisa diambil dari Consul
-	if jaegerEndpoint == "" {
-		jaegerEndpoint = "jaeger:4317"
-	}
+	enhanced_logger.LogStartup(cfg.ServiceName, cfg.Port, map[string]interface{}{
+		"jaeger_endpoint": cfg.JaegerEndpoint,
+	})
 
-	tp, err := telemetry.InitTracerProvider(serviceName, jaegerEndpoint)
+	tp, err := telemetry.InitTracerProvider(cfg.ServiceName, cfg.JaegerEndpoint)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Gagal menginisialisasi OTel tracer provider")
+		serviceLogger.Fatal().Err(err).Msg("Gagal menginisialisasi OTel tracer provider")
 	}
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
-			log.Error().Err(err).Msg("Error saat mematikan tracer provider")
+			serviceLogger.Error().Err(err).Msg("Error saat mematikan tracer provider")
 		}
 	}()
 
 	dbpool, err := setupDependencies(cfg)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Gagal menginisialisasi dependensi")
+		serviceLogger.Fatal().Err(err).Msg("Gagal menginisialisasi dependensi")
 	}
 	defer dbpool.Close()
 
 	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "cache-redis:6379"
-	}
-	redisClient := redis_client.NewClient(&redis_client.Options{Addr: redisAddr})
+	if redisAddr == "" { redisAddr = "cache-redis:6379" }
+	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
 	defer redisClient.Close()
 
+	// === Injeksi Dependensi ===
 	fileRepo := repository.NewPostgresFileRepository(dbpool)
 	fileService := service.NewFileService(fileRepo, cfg)
 	fileHandler := handler.NewFileHandler(fileService)
 
+	// === Setup Server HTTP ===
+	portStr := strconv.Itoa(cfg.Port)
 	router := gin.Default()
-	router.Use(otelgin.Middleware(serviceName))
+	router.Use(otelgin.Middleware(cfg.ServiceName))
 	p := ginprometheus.NewPrometheus("gin")
 	p.Use(router)
 
-	// Grup rute di bawah /files, sesuai dengan Traefik
+	// === Rute API ===
 	fileRoutes := router.Group("/files")
 	{
 		fileRoutes.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "healthy"}) })
 
+		// Rute ini dilindungi oleh middleware JWT asli dari common-libs
 		protected := fileRoutes.Group("/")
 		protected.Use(auth.JWTMiddleware(redisClient))
 		{
@@ -112,46 +104,35 @@ func main() {
 		}
 	}
 
-	consulClient, err := client.RegisterService(client.ServiceRegistrationInfo{
-		ServiceName:    serviceName,
-		ServiceID:      fmt.Sprintf("%s-%d", serviceName, port),
-		Port:           port,
-		HealthCheckURL: fmt.Sprintf("http://%s:%d/files/health", serviceName, port),
-	})
-	if err != nil {
-		log.Fatal().Err(err).Msg("Gagal mendaftarkan service ke Consul")
+	// === Registrasi Service & Graceful Shutdown ===
+	regInfo := client.ServiceRegistrationInfo{
+		ServiceName:    cfg.ServiceName,
+		ServiceID:      fmt.Sprintf("%s-%d", cfg.ServiceName, cfg.Port),
+		Port:           cfg.Port,
+		HealthCheckURL: fmt.Sprintf("http://localhost:%d/files/health", cfg.Port),
 	}
-	defer client.DeregisterService(consulClient, fmt.Sprintf("%s-%d", serviceName, port))
+	consul, err := client.RegisterService(regInfo)
+	if err != nil { serviceLogger.Fatal().Err(err).Msg("Gagal mendaftarkan service ke Consul") }
+	defer client.DeregisterService(consul, regInfo.ServiceID)
 
-	log.Info().Msgf("Memulai %s di port %d", serviceName, port)
-	if err := router.Run(":" + portStr); err != nil {
-		log.Fatal().Err(err).Msg("Gagal menjalankan server")
-	}
-
-	// === Tahap 2: Jalankan Server & Tangani Shutdown ===
-	srv := &http.Server{
-		Addr:    ":" + portStr,
-		Handler: router,
-	}
+	srv := &http.Server{Addr: ":" + portStr, Handler: router}
 
 	go func() {
-		log.Info().Str("service", "prism-file-service").Msgf("HTTP server listening on %s", srv.Addr)
+		serviceLogger.Info().Msgf("Memulai server HTTP di port %s", portStr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatal().Err(err).Msg("HTTP server ListenAndServe error")
+			serviceLogger.Fatal().Err(err).Msg("Server HTTP gagal berjalan")
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Info().Msg("Shutdown signal received, starting graceful shutdown...")
 
+	serviceLogger.Info().Msg("Sinyal shutdown diterima...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal().Err(err).Msg("Server forced to shutdown")
+		serviceLogger.Fatal().Err(err).Msg("Server terpaksa dimatikan")
 	}
-
-	log.Info().Msg("Server exiting gracefully.")
+	enhanced_logger.LogShutdown(cfg.ServiceName)
 }

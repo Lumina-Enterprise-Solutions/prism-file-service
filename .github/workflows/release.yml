@@ -1,52 +1,38 @@
-# Nama workflow untuk proses rilis
-name: Create Release and Build Binaries
+name: Publish File Service Release
 
-# Pemicu: Hanya berjalan saat ada tag baru yang di-push dengan format v* (e.g., v1.2.3)
 on:
   push:
     tags:
     - 'v*'
 
 jobs:
-  release:
+  publish-and-release:
+    name: Publish Docker Image and Create Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Dibutuhkan untuk membuat release dan mengunggah aset
+      contents: write
+      packages: write
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
+    - uses: actions/checkout@v4
+    - uses: docker/login-action@v3
       with:
-        go-version: '1.24'
-
-    - name: Get Release Version from Tag
-      id: get_version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
-
-    - name: Build binary for release
-      run: go build -o prism-file-service-linux-amd64 .
-
-    - name: Create GitHub Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - uses: docker/metadata-action@v5
+      id: meta
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ env.VERSION }}
-        body: "Rilis resmi versi ${{ env.VERSION }} dari Prism File Service."
-        draft: false
-        prerelease: false
-
-    - name: Upload Linux Binary to Release
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        images: ghcr.io/${{ github.repository }}
+    - uses: docker/setup-qemu-action@v3
+    - uses: docker/setup-buildx-action@v3
+    - uses: docker/build-push-action@v6
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./prism-file-service-linux-amd64
-        asset_name: prism-file-service-linux-amd64
-        asset_content_type: application/octet-stream
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+    - uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: true

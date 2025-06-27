@@ -4,8 +4,15 @@ import (
 	"context"
 
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/model"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+type DBTX interface {
+	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...interface{}) pgx.Row
+}
 
 type FileRepository interface {
 	Create(ctx context.Context, metadata *model.FileMetadata) error
@@ -14,10 +21,10 @@ type FileRepository interface {
 }
 
 type postgresFileRepository struct {
-	db *pgxpool.Pool
+	db DBTX // <-- Bergantung pada interface, bukan tipe konkret
 }
 
-func NewPostgresFileRepository(db *pgxpool.Pool) FileRepository {
+func NewPostgresFileRepository(db DBTX) FileRepository {
 	return &postgresFileRepository{db: db}
 }
 

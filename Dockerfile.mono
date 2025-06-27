@@ -1,0 +1,47 @@
+# services/prism-file-service/Dockerfile
+
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Salin file manajemen dependensi
+COPY go.work go.work.sum ./
+COPY common/prism-common-libs/go.mod ./common/prism-common-libs/
+COPY services/prism-auth-service/go.mod ./services/prism-auth-service/
+COPY services/prism-user-service/go.mod ./services/prism-user-service/
+COPY services/prism-notification-service/go.mod ./services/prism-notification-service/
+COPY services/prism-file-service/go.mod ./services/prism-file-service/
+
+# Download dependensi agar bisa di-cache
+# Kita perlu menjalankan `go mod tidy` di dalam service-nya dulu
+# agar go mod download bekerja dengan benar untuk service baru ini.
+# Cara alternatif, kita bisa langsung `go work vendor` di root.
+# Untuk sekarang, kita akan tambahkan `tidy` di sini.
+WORKDIR /app/services/prism-file-service
+RUN go mod tidy
+WORKDIR /app
+
+RUN go mod download
+
+# Salin semua source code
+COPY . .
+
+# Build aplikasi spesifik untuk service ini
+# Pastikan path ini benar
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/main ./services/prism-file-service
+
+
+# --- Tahap 2: Final Image ---
+FROM alpine:latest
+
+WORKDIR /app
+
+# Buat direktori storage di dalam kontainer
+RUN mkdir -p /storage
+
+# Salin binary aplikasi yang sudah di-build dari tahap 'builder'
+COPY --from=builder /app/main .
+
+ENV SERVICE_NAME=prism-file-service
+
+CMD ["./main"]
