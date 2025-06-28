@@ -33,7 +33,6 @@ func setupDependencies(cfg *fileserviceconfig.Config) (*pgxpool.Pool, storage.St
 		return nil, nil, fmt.Errorf("gagal membuat klien Vault: %w", err)
 	}
 
-	// PERUBAHAN: Tambahkan secret S3 jika backend-nya S3
 	secretPath := "secret/data/prism"
 	requiredSecrets := []string{"database_url", "jwt_secret_key"}
 	if cfg.StorageBackend == "s3" {
@@ -49,12 +48,12 @@ func setupDependencies(cfg *fileserviceconfig.Config) (*pgxpool.Pool, storage.St
 		return nil, nil, fmt.Errorf("gagal membuat connection pool: %w", err)
 	}
 
-	// PERUBAHAN: Inisialisasi storage backend
 	var fileStorage storage.Storage
 	switch cfg.StorageBackend {
 	case "s3":
 		s3cfg := cfg.S3Config
-		fileStorage, err = storage.NewS3Storage(context.Background(), s3cfg.Region, s3cfg.Endpoint, s3cfg.AccessKey, s3cfg.SecretKey, s3cfg.Bucket)
+		// FIX: Tambahkan argumen cfg.S3Config.UsePathStyle di sini
+		fileStorage, err = storage.NewS3Storage(context.Background(), s3cfg.Region, s3cfg.Endpoint, s3cfg.AccessKey, s3cfg.SecretKey, s3cfg.Bucket, s3cfg.UsePathStyle)
 		if err != nil {
 			return nil, nil, fmt.Errorf("gagal inisialisasi S3 storage: %w", err)
 		}
@@ -76,7 +75,7 @@ func main() {
 
 	enhanced_logger.LogStartup(cfg.ServiceName, cfg.Port, map[string]interface{}{
 		"jaeger_endpoint": cfg.JaegerEndpoint,
-		"storage_backend": cfg.StorageBackend, // Log backend yang digunakan
+		"storage_backend": cfg.StorageBackend,
 	})
 
 	tp, err := telemetry.InitTracerProvider(cfg.ServiceName, cfg.JaegerEndpoint)

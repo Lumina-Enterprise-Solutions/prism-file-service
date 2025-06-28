@@ -51,7 +51,17 @@ func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file for validation: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Jika belum ada error lain, jadikan ini error utama.
+			if err == nil {
+				err = fmt.Errorf("gagal menutup file multipart: %w", closeErr)
+			} else {
+				// Jika sudah ada error, log ini sebagai peringatan.
+				log.Warn().Err(closeErr).Msg("Gagal menutup file multipart setelah error sebelumnya.")
+			}
+		}
+	}()
 
 	mime, err := mimetype.DetectReader(file)
 	if err != nil {

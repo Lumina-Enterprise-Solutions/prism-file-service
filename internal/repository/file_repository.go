@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Lumina-Enterprise-Solutions/prism-common-libs/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 )
 
 type DBTX interface {
@@ -35,7 +37,11 @@ func (r *postgresFileRepository) Create(ctx context.Context, metadata *model.Fil
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			log.Warn().Err(err).Msg("Gagal melakukan rollback pada transaksi Create File")
+		}
+	}()
 
 	sqlInsertFile := `INSERT INTO files (id, original_name, storage_path, mime_type, size_bytes, owner_user_id)
                       VALUES ($1, $2, $3, $4, $5, $6);`

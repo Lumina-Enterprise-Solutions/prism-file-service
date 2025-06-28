@@ -18,31 +18,26 @@ type S3Storage struct {
 	bucket string
 }
 
-func NewS3Storage(ctx context.Context, region, endpoint, accessKey, secretKey, bucket string) (*S3Storage, error) {
-	resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		if endpoint != "" {
-			return aws.Endpoint{
-				PartitionID:   "aws",
-				URL:           endpoint,
-				SigningRegion: region,
-				Source:        aws.EndpointSourceCustom,
-			}, nil
-		}
-		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-	})
-
+func NewS3Storage(ctx context.Context, region, endpoint, accessKey, secretKey, bucket string, usePathStyle bool) (*S3Storage, error) {
+	// Muat konfigurasi dasar tanpa endpoint resolver global.
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
-		config.WithEndpointResolverWithOptions(resolver),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
+		config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
+		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("gagal memuat konfigurasi AWS SDK: %w", err)
 	}
 
-	// Untuk Minio, path-style access diperlukan
+	// Buat klien S3 dengan opsi kustom.
+	// Ini adalah cara yang benar untuk menangani endpoint custom seperti Minio.
 	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.UsePathStyle = true
+		o.UsePathStyle = usePathStyle
+		if endpoint != "" {
+			// Suntikkan resolver langsung ke opsi klien S3.
+			o.BaseEndpoint = aws.String(endpoint)
+		}
 	})
 
 	log.Printf("S3 Storage client berhasil diinisialisasi untuk bucket '%s'", bucket)

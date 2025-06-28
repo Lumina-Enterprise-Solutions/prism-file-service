@@ -1,6 +1,8 @@
+// file: internal/handler/file_handler.go
 package handler
 
 import (
+	"errors" // BARU: Import errors
 	"fmt"
 	"io"
 	"net/http"
@@ -73,13 +75,12 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 
 	metadata, err := h.fileService.GetFileMetadata(c.Request.Context(), fileID, claims)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err == service.ErrAccessDenied {
-			statusCode = http.StatusForbidden
+		// FIX: Hapus deklarasi `statusCode` yang tidak efektif.
+		if errors.Is(err, service.ErrAccessDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Akses ditolak", "details": err.Error()})
 		} else {
-			statusCode = http.StatusNotFound
+			c.JSON(http.StatusNotFound, gin.H{"error": "File tidak ditemukan", "details": err.Error()})
 		}
-		c.JSON(statusCode, gin.H{"error": "File tidak dapat diakses", "details": err.Error()})
 		return
 	}
 
@@ -89,7 +90,12 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "File tidak ditemukan di penyimpanan"})
 		return
 	}
-	defer fileReader.Close()
+	// FIX: Periksa error saat menutup fileReader.
+	defer func() {
+		if err := fileReader.Close(); err != nil {
+			log.Warn().Err(err).Str("file_id", fileID).Msg("Gagal menutup file reader setelah download")
+		}
+	}()
 
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", metadata.OriginalName))
 	c.Header("Content-Type", metadata.MimeType)

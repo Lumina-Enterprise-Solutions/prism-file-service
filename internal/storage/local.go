@@ -29,7 +29,11 @@ func (l *LocalStorage) Save(ctx context.Context, path string, content io.Reader)
 	if err != nil {
 		return fmt.Errorf("gagal membuat file tujuan di disk: %w", err)
 	}
-	defer dst.Close()
+	defer func() {
+		if closeErr := dst.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("gagal menutup file tujuan: %w", closeErr)
+		}
+	}()
 
 	_, err = io.Copy(dst, content)
 	return err
