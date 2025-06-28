@@ -17,15 +17,17 @@ tidy: ## 🧹 Tidy go module dependencies
 
 # TESTING
 test: ## 🧪 Run unit tests only
+	@echo ">> Running unit tests..."
 	@go test -v -race -cover ./...
 
-test-integration: ## 🧪 Run integration tests (requires DATABASE_URL_TEST env var)
-	@echo ">> Running integration tests. Ensure DATABASE_URL_TEST is set."
-	@go test -v -race -tags=integration ./...
+# PERBAIKAN: Panggil script yang mengatur environment
+test-integration: ## 🧪 Run integration tests (requires Docker services to be up)
+	@echo ">> Running integration tests via script..."
+	@chmod +x ./scripts/test-integration.sh
+	@./scripts/test-integration.sh
 
-test-all: ## 🧪 Run ALL tests (unit and integration)
-	@echo ">> Running all tests..."
-	@go test -v -race -cover -tags=integration ./...
+# PERBAIKAN: Jalankan kedua jenis tes secara berurutan
+test-all: test test-integration ## 🧪 Run ALL tests (unit and integration)
 
 lint: ## 🧹 Run golangci-lint
 	@golangci-lint run ./...

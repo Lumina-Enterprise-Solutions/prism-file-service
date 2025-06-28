@@ -19,6 +19,7 @@ import (
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/handler"
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/repository"
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/service"
+	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -26,24 +27,44 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
-func setupDependencies(cfg *fileserviceconfig.Config) (*pgxpool.Pool, error) {
+func setupDependencies(cfg *fileserviceconfig.Config) (*pgxpool.Pool, storage.Storage, error) {
 	vaultClient, err := client.NewVaultClient(cfg.VaultAddr, cfg.VaultToken)
 	if err != nil {
-		return nil, fmt.Errorf("gagal membuat klien Vault: %w", err)
+		return nil, nil, fmt.Errorf("gagal membuat klien Vault: %w", err)
 	}
 
+	// PERUBAHAN: Tambahkan secret S3 jika backend-nya S3
 	secretPath := "secret/data/prism"
 	requiredSecrets := []string{"database_url", "jwt_secret_key"}
+	if cfg.StorageBackend == "s3" {
+		requiredSecrets = append(requiredSecrets, "s3_region", "s3_endpoint", "s3_access_key", "s3_secret_key", "s3_bucket")
+	}
 
 	if err := vaultClient.LoadSecretsToEnv(secretPath, requiredSecrets...); err != nil {
-		return nil, fmt.Errorf("gagal memuat rahasia-rahasia penting dari Vault: %w", err)
+		return nil, nil, fmt.Errorf("gagal memuat rahasia-rahasia penting dari Vault: %w", err)
 	}
 
 	dbpool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
 	if err != nil {
-		return nil, fmt.Errorf("gagal membuat connection pool: %w", err)
+		return nil, nil, fmt.Errorf("gagal membuat connection pool: %w", err)
 	}
-	return dbpool, nil
+
+	// PERUBAHAN: Inisialisasi storage backend
+	var fileStorage storage.Storage
+	switch cfg.StorageBackend {
+	case "s3":
+		s3cfg := cfg.S3Config
+		fileStorage, err = storage.NewS3Storage(context.Background(), s3cfg.Region, s3cfg.Endpoint, s3cfg.AccessKey, s3cfg.SecretKey, s3cfg.Bucket)
+		if err != nil {
+			return nil, nil, fmt.Errorf("gagal inisialisasi S3 storage: %w", err)
+		}
+	case "local":
+		fileStorage = storage.NewLocalStorage("/storage")
+	default:
+		return nil, nil, fmt.Errorf("storage backend tidak valid: %s", cfg.StorageBackend)
+	}
+
+	return dbpool, fileStorage, nil
 }
 
 func main() {
@@ -55,6 +76,7 @@ func main() {
 
 	enhanced_logger.LogStartup(cfg.ServiceName, cfg.Port, map[string]interface{}{
 		"jaeger_endpoint": cfg.JaegerEndpoint,
+		"storage_backend": cfg.StorageBackend, // Log backend yang digunakan
 	})
 
 	tp, err := telemetry.InitTracerProvider(cfg.ServiceName, cfg.JaegerEndpoint)
@@ -67,7 +89,7 @@ func main() {
 		}
 	}()
 
-	dbpool, err := setupDependencies(cfg)
+	dbpool, fileStorage, err := setupDependencies(cfg)
 	if err != nil {
 		serviceLogger.Fatal().Err(err).Msg("Gagal menginisialisasi dependensi")
 	}
@@ -78,7 +100,6 @@ func main() {
 		redisAddr = "cache-redis:6379"
 	}
 	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
-	// LINT FIX: Check error on closing Redis client
 	defer func() {
 		if err := redisClient.Close(); err != nil {
 			serviceLogger.Error().Err(err).Msg("Failed to close Redis client gracefully")
@@ -87,7 +108,7 @@ func main() {
 
 	// === Injeksi Dependensi ===
 	fileRepo := repository.NewPostgresFileRepository(dbpool)
-	fileService := service.NewFileService(fileRepo, cfg)
+	fileService := service.NewFileService(fileRepo, fileStorage, cfg)
 	fileHandler := handler.NewFileHandler(fileService)
 
 	// === Setup Server HTTP ===
