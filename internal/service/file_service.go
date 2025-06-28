@@ -33,7 +33,7 @@ type fileService struct {
 func NewFileService(repo repository.FileRepository, cfg *fileserviceconfig.Config) FileService {
 	return &fileService{
 		repo:        repo,
-		storagePath: "/app/storage",
+		storagePath: "/storage",
 		cfg:         cfg,
 	}
 }
