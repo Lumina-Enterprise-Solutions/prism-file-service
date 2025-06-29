@@ -31,7 +31,8 @@ type Config struct {
 	S3Config            S3Config
 }
 
-func Load() *Config {
+// FIX: Load sekarang menerima S3Config sebagai parameter
+func Load(s3Config S3Config) *Config {
 	loader, err := commonconfig.NewLoader()
 	if err != nil {
 		log.Fatalf("Gagal membuat config loader untuk file-service: %v", err)
@@ -50,30 +51,27 @@ func Load() *Config {
 		allowedTypesMap[strings.TrimSpace(t)] = true
 	}
 
-	log.Printf("Konfigurasi File-Service dimuat: MaxSize=%dMB, AllowedTypes=%v", maxSizeMB, allowedTypesList)
-
 	storageBackend := loader.Get(fmt.Sprintf("%s/storage_backend", pathPrefix), "local")
 	log.Printf("Backend penyimpanan aktif: %s", storageBackend)
 
 	s3UsePathStyleStr := loader.Get(fmt.Sprintf("%s/s3_use_path_style", pathPrefix), "true")
 	s3UsePathStyle, _ := strconv.ParseBool(s3UsePathStyleStr)
 
+	// FIX: Set S3Config dari parameter, jangan dari env var lagi
+	finalS3Config := s3Config
+	finalS3Config.UsePathStyle = s3UsePathStyle
+
+	log.Printf("Konfigurasi File-Service dimuat: MaxSize=%dMB, StorageBackend=%s", maxSizeMB, storageBackend)
+
 	return &Config{
 		ServiceName:         serviceName,
-		Port:                loader.GetInt(fmt.Sprintf("config/%s/port", serviceName), 8083),
+		Port:                loader.GetInt(fmt.Sprintf("%s/port", serviceName), 8080),
 		MaxFileSizeBytes:    maxSizeBytes,
 		AllowedMimeTypesMap: allowedTypesMap,
 		VaultAddr:           os.Getenv("VAULT_ADDR"),
 		VaultToken:          os.Getenv("VAULT_TOKEN"),
 		JaegerEndpoint:      loader.Get("config/global/jaeger_endpoint", "jaeger:4317"),
 		StorageBackend:      storageBackend,
-		S3Config: S3Config{
-			Region:       os.Getenv("S3_REGION"),
-			Endpoint:     os.Getenv("S3_ENDPOINT"),
-			AccessKey:    os.Getenv("S3_ACCESS_KEY"),
-			SecretKey:    os.Getenv("S3_SECRET_KEY"),
-			Bucket:       os.Getenv("S3_BUCKET"),
-			UsePathStyle: s3UsePathStyle,
-		},
+		S3Config:            finalS3Config, // Gunakan struct yang sudah diisi
 	}
 }

@@ -23,55 +23,77 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog/log" // Import log untuk digunakan di defer
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
 
-func setupDependencies(cfg *fileserviceconfig.Config) (*pgxpool.Pool, storage.Storage, error) {
-	vaultClient, err := client.NewVaultClient(cfg.VaultAddr, cfg.VaultToken)
+func loadSecretsFromVault(vaultAddr, vaultToken string) (fileserviceconfig.S3Config, error) {
+	vaultClient, err := client.NewVaultClient(vaultAddr, vaultToken)
 	if err != nil {
-		return nil, nil, fmt.Errorf("gagal membuat klien Vault: %w", err)
+		return fileserviceconfig.S3Config{}, fmt.Errorf("gagal membuat klien Vault: %w", err)
 	}
 
 	secretPath := "secret/data/prism"
-	requiredSecrets := []string{"database_url", "jwt_secret_key"}
-	if cfg.StorageBackend == "s3" {
-		requiredSecrets = append(requiredSecrets, "s3_region", "s3_endpoint", "s3_access_key", "s3_secret_key", "s3_bucket")
+	requiredSecrets := []string{"database_url", "jwt_secret_key", "s3_region", "s3_endpoint", "s3_access_key", "s3_secret_key", "s3_bucket"}
+	secretsMap, err := vaultClient.ReadMultipleSecrets(secretPath, requiredSecrets...)
+	if err != nil {
+		return fileserviceconfig.S3Config{}, err
 	}
 
-	if err := vaultClient.LoadSecretsToEnv(secretPath, requiredSecrets...); err != nil {
-		return nil, nil, fmt.Errorf("gagal memuat rahasia-rahasia penting dari Vault: %w", err)
+	s3Config := fileserviceconfig.S3Config{
+		Region:    secretsMap["s3_region"],
+		Endpoint:  secretsMap["s3_endpoint"],
+		AccessKey: secretsMap["s3_access_key"],
+		SecretKey: secretsMap["s3_secret_key"],
+		Bucket:    secretsMap["s3_bucket"],
+	}
+
+	// FIX: Periksa error dari os.Setenv
+	if err := os.Setenv("DATABASE_URL", secretsMap["database_url"]); err != nil {
+		return fileserviceconfig.S3Config{}, fmt.Errorf("gagal set env var DATABASE_URL: %w", err)
+	}
+	if err := os.Setenv("JWT_SECRET_KEY", secretsMap["jwt_secret_key"]); err != nil {
+		return fileserviceconfig.S3Config{}, fmt.Errorf("gagal set env var JWT_SECRET_KEY: %w", err)
+	}
+
+	return s3Config, nil
+}
+
+func setupDependencies(vaultAddr, vaultToken string) (*pgxpool.Pool, fileserviceconfig.S3Config, error) {
+	s3Config, err := loadSecretsFromVault(vaultAddr, vaultToken)
+	if err != nil {
+		return nil, fileserviceconfig.S3Config{}, err
 	}
 
 	dbpool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
 	if err != nil {
-		return nil, nil, fmt.Errorf("gagal membuat connection pool: %w", err)
+		return nil, fileserviceconfig.S3Config{}, fmt.Errorf("gagal membuat connection pool: %w", err)
 	}
 
-	var fileStorage storage.Storage
-	switch cfg.StorageBackend {
-	case "s3":
-		s3cfg := cfg.S3Config
-		// FIX: Tambahkan argumen cfg.S3Config.UsePathStyle di sini
-		fileStorage, err = storage.NewS3Storage(context.Background(), s3cfg.Region, s3cfg.Endpoint, s3cfg.AccessKey, s3cfg.SecretKey, s3cfg.Bucket, s3cfg.UsePathStyle)
-		if err != nil {
-			return nil, nil, fmt.Errorf("gagal inisialisasi S3 storage: %w", err)
-		}
-	case "local":
-		fileStorage = storage.NewLocalStorage("/storage")
-	default:
-		return nil, nil, fmt.Errorf("storage backend tidak valid: %s", cfg.StorageBackend)
-	}
-
-	return dbpool, fileStorage, nil
+	return dbpool, s3Config, nil
 }
 
 func main() {
-	// === Inisialisasi ===
 	enhanced_logger.Init()
 	serviceLogger := enhanced_logger.WithService("prism-file-service")
 
-	cfg := fileserviceconfig.Load()
+	vaultAddr := os.Getenv("VAULT_ADDR")
+	if vaultAddr == "" {
+		vaultAddr = "http://vault:8200"
+	}
+	vaultToken := os.Getenv("VAULT_TOKEN")
+	if vaultToken == "" {
+		vaultToken = "root-token-for-dev"
+	}
+
+	dbpool, s3Config, err := setupDependencies(vaultAddr, vaultToken)
+	if err != nil {
+		serviceLogger.Fatal().Err(err).Msg("Gagal menginisialisasi dependensi dari Vault")
+	}
+	defer dbpool.Close()
+
+	cfg := fileserviceconfig.Load(s3Config)
 
 	enhanced_logger.LogStartup(cfg.ServiceName, cfg.Port, map[string]interface{}{
 		"jaeger_endpoint": cfg.JaegerEndpoint,
@@ -82,46 +104,51 @@ func main() {
 	if err != nil {
 		serviceLogger.Fatal().Err(err).Msg("Gagal menginisialisasi OTel tracer provider")
 	}
+	// FIX: Periksa error di dalam defer
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
-			serviceLogger.Error().Err(err).Msg("Error saat mematikan tracer provider")
+			log.Error().Err(err).Msg("Gagal mematikan tracer provider dengan benar")
 		}
 	}()
 
-	dbpool, fileStorage, err := setupDependencies(cfg)
-	if err != nil {
-		serviceLogger.Fatal().Err(err).Msg("Gagal menginisialisasi dependensi")
+	var fileStorage storage.Storage
+	switch cfg.StorageBackend {
+	case "s3":
+		fileStorage, err = storage.NewS3Storage(context.Background(), cfg.S3Config.Region, cfg.S3Config.Endpoint, cfg.S3Config.AccessKey, cfg.S3Config.SecretKey, cfg.S3Config.Bucket, cfg.S3Config.UsePathStyle)
+		if err != nil {
+			serviceLogger.Fatal().Err(err).Msgf("Gagal inisialisasi S3 storage: %v", err)
+		}
+	case "local":
+		fileStorage = storage.NewLocalStorage("/storage")
+	default:
+		serviceLogger.Fatal().Msgf("Storage backend tidak valid: %s", cfg.StorageBackend)
 	}
-	defer dbpool.Close()
 
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
 		redisAddr = "cache-redis:6379"
 	}
 	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
+	// FIX: Periksa error di dalam defer
 	defer func() {
 		if err := redisClient.Close(); err != nil {
-			serviceLogger.Error().Err(err).Msg("Failed to close Redis client gracefully")
+			log.Error().Err(err).Msg("Gagal menutup koneksi Redis dengan benar")
 		}
 	}()
 
-	// === Injeksi Dependensi ===
 	fileRepo := repository.NewPostgresFileRepository(dbpool)
 	fileService := service.NewFileService(fileRepo, fileStorage, cfg)
 	fileHandler := handler.NewFileHandler(fileService)
 
-	// === Setup Server HTTP ===
 	portStr := strconv.Itoa(cfg.Port)
 	router := gin.Default()
 	router.Use(otelgin.Middleware(cfg.ServiceName))
 	p := ginprometheus.NewPrometheus("gin")
 	p.Use(router)
 
-	// === Rute API ===
 	fileRoutes := router.Group("/files")
 	{
 		fileRoutes.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "healthy"}) })
-
 		protected := fileRoutes.Group("/")
 		protected.Use(auth.JWTMiddleware(redisClient))
 		{
@@ -130,7 +157,6 @@ func main() {
 		}
 	}
 
-	// === Registrasi Service & Graceful Shutdown ===
 	regInfo := client.ServiceRegistrationInfo{
 		ServiceName:    cfg.ServiceName,
 		ServiceID:      fmt.Sprintf("%s-%d", cfg.ServiceName, cfg.Port),
