@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setupTestDB sekarang mengembalikan DBTX (yang akan berupa pgx.Tx) dan fungsi teardown.
-func setupTestDB(t *testing.T) (DBTX, func()) {
+// setupTestDB diubah untuk mengembalikan pool dan fungsi teardown yang lebih robust.
+func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 	databaseURL := os.Getenv("DATABASE_URL_TEST")
 	if databaseURL == "" {
 		t.Skip("Skipping integration test: DATABASE_URL_TEST is not set.")
@@ -29,7 +29,9 @@ func setupTestDB(t *testing.T) (DBTX, func()) {
 	pool, err := pgxpool.New(context.Background(), databaseURL)
 	require.NoError(t, err, "Failed to connect to test database")
 
-	createTableSQL := `
+	// Skema sederhana untuk tes file repository
+	createTablesSQL := `
+    DROP TABLE IF EXISTS file_tags, file_access_rules, files CASCADE;
     CREATE TABLE IF NOT EXISTS files (
         id UUID PRIMARY KEY,
         original_name VARCHAR(255) NOT NULL,
@@ -37,38 +39,45 @@ func setupTestDB(t *testing.T) (DBTX, func()) {
         mime_type VARCHAR(100) NOT NULL,
         size_bytes BIGINT NOT NULL,
         owner_user_id VARCHAR(36),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMPTZ
+    );
+    CREATE TABLE IF NOT EXISTS file_tags (
+        file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        tag_name VARCHAR(100) NOT NULL,
+        PRIMARY KEY (file_id, tag_name)
+    );
+    CREATE TABLE IF NOT EXISTS file_access_rules (
+        tag_name VARCHAR(100) NOT NULL,
+        role_name VARCHAR(100) NOT NULL,
+        PRIMARY KEY (tag_name, role_name)
     );`
-	_, err = pool.Exec(context.Background(), createTableSQL)
-	require.NoError(t, err, "Failed to create 'files' table")
+	_, err = pool.Exec(context.Background(), createTablesSQL)
+	require.NoError(t, err, "Failed to create test tables")
 
-	// Mulai transaksi untuk tes ini
-	tx, err := pool.Begin(context.Background())
-	require.NoError(t, err)
-
-	// Fungsi teardown akan me-rollback transaksi, membersihkan semua data tes
 	teardown := func() {
-		err := tx.Rollback(context.Background())
-		if err != nil && err != pgx.ErrTxClosed {
-			t.Logf("Warning: failed to rollback transaction: %v", err)
+		// Bersihkan tabel setelah tes selesai
+		_, err := pool.Exec(context.Background(), "DROP TABLE IF EXISTS file_tags, file_access_rules, files CASCADE;")
+		if err != nil {
+			t.Logf("Warning: failed to drop tables on teardown: %v", err)
 		}
 		pool.Close()
 	}
 
-	// Kembalikan transaksi (tx) sebagai DBTX
-	return tx, teardown
+	return pool, teardown
 }
 
 func TestPostgresFileRepository_Integration(t *testing.T) {
-	// Dapatkan transaksi sebagai DBTX dari helper
-	db, teardown := setupTestDB(t)
+	// FIX: Dapatkan pool, bukan transaksi
+	dbpool, teardown := setupTestDB(t)
 	defer teardown()
 
-	// Buat repository dengan transaksi tersebut. Ini sekarang valid.
-	repo := NewPostgresFileRepository(db)
+	// FIX: Inisialisasi repo dengan pool
+	repo := NewPostgresFileRepository(dbpool)
 	ctx := context.Background()
 
 	ownerID := uuid.New().String()
+	tags := []string{"invoice", "q1_2025"}
 	metadata := &model.FileMetadata{
 		ID:           uuid.New().String(),
 		OriginalName: "invoice_2025.pdf",
@@ -79,7 +88,8 @@ func TestPostgresFileRepository_Integration(t *testing.T) {
 	}
 
 	// 1. Test Create
-	err := repo.Create(ctx, metadata)
+	// FIX: Panggil Create dengan argumen tags
+	err := repo.Create(ctx, metadata, tags)
 	require.NoError(t, err, "Create should not return an error")
 
 	// 2. Test GetByID
@@ -91,14 +101,29 @@ func TestPostgresFileRepository_Integration(t *testing.T) {
 	assert.Equal(t, metadata.OriginalName, retrieved.OriginalName)
 	assert.Equal(t, metadata.SizeBytes, retrieved.SizeBytes)
 	assert.Equal(t, *metadata.OwnerUserID, *retrieved.OwnerUserID)
+	assert.ElementsMatch(t, tags, retrieved.Tags, "Tags should match")
 	assert.WithinDuration(t, time.Now(), retrieved.CreatedAt, 2*time.Second)
 
-	// 3. Test DeleteByID
+	// 3. Test CheckRoleAccess (kasus gagal)
+	hasAccess, err := repo.CheckRoleAccess(ctx, metadata.ID, "finance")
+	require.NoError(t, err)
+	assert.False(t, hasAccess, "Role 'finance' seharusnya tidak memiliki akses")
+
+	// Setup aturan akses untuk kasus berhasil
+	_, err = dbpool.Exec(ctx, "INSERT INTO file_access_rules (tag_name, role_name) VALUES ('invoice', 'finance')")
+	require.NoError(t, err)
+
+	// 4. Test CheckRoleAccess (kasus berhasil)
+	hasAccess, err = repo.CheckRoleAccess(ctx, metadata.ID, "finance")
+	require.NoError(t, err)
+	assert.True(t, hasAccess, "Role 'finance' sekarang seharusnya memiliki akses")
+
+	// 5. Test DeleteByID
 	err = repo.DeleteByID(ctx, metadata.ID)
 	require.NoError(t, err, "DeleteByID should not return an error")
 
-	// 4. Verify Deletion
+	// 6. Verify Deletion
 	_, err = repo.GetByID(ctx, metadata.ID)
 	require.Error(t, err, "GetByID should return an error for a deleted record")
-	assert.Equal(t, pgx.ErrNoRows, err, "The error should be pgx.ErrNoRows")
+	assert.ErrorIs(t, err, pgx.ErrNoRows, "The error should be pgx.ErrNoRows")
 }

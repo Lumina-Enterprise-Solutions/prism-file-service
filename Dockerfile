@@ -23,5 +23,5 @@ USER appuser
 # Volume untuk penyimpanan file persisten
 VOLUME /storage
 # Expose port
-EXPOSE 8083
+EXPOSE 8080
 CMD ["./server"]
