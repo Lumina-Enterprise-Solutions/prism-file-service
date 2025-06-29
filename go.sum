@@ -1,6 +1,6 @@
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.2.9 h1:58Z7wl0O6CQ2iqPQRSZaInmlmXTtALReP+ML6u2wl/o=
-github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.2.9/go.mod h1:eEwMVCslAJrFipZYsIE4DFMzNAd9qxo64Lg7qiC1bDs=
+github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.2.10 h1:GiFwaAXVG4lS9KCigbNLYyV87z/I/mmABC1XeBD6VgM=
+github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.2.10/go.mod h1:eEwMVCslAJrFipZYsIE4DFMzNAd9qxo64Lg7qiC1bDs=
 github.com/Lumina-Enterprise-Solutions/prism-protobufs v0.0.5 h1:MQTqeGtzZ5WrCooa05VuYwtreRsQhcW4NfeJcKig1ZI=
 github.com/Lumina-Enterprise-Solutions/prism-protobufs v0.0.5/go.mod h1:yLQd4SSVCyz0dYHr39W3ujONZ+dQAnOYQwPU6BIVxpg=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=

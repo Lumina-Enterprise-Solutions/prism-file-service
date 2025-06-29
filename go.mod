@@ -3,7 +3,7 @@ module github.com/Lumina-Enterprise-Solutions/prism-file-service
 go 1.24.3
 
 require (
-	github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.2.9
+	github.com/Lumina-Enterprise-Solutions/prism-common-libs v1.2.10
 	github.com/aws/aws-sdk-go-v2 v1.36.5
 	github.com/aws/aws-sdk-go-v2/config v1.29.17
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.70
