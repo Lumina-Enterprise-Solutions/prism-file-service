@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prism File Service | Lumina Enterprise Solutions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+        }
+        
+        .glass-effect {
+            backdrop-filter: blur(20px);
+            background: rgba(15, 15, 35, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .glow-effect {
+            box-shadow: 0 0 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .floating-animation {
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        .pulse-glow {
+            animation: pulse-glow 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes pulse-glow {
+            from { box-shadow: 0 0 20px rgba(102, 126, 234, 0.4); }
+            to { box-shadow: 0 0 40px rgba(102, 126, 234, 0.8); }
+        }
+        
+        .slide-up {
+            animation: slideUp 0.8s ease-out forwards;
+            opacity: 0;
+            transform: translateY(50px);
+        }
+        
+        @keyframes slideUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .particle {
+            position: absolute;
+            background: rgba(102, 126, 234, 0.6);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: particleFloat 8s infinite linear;
+        }
+        
+        @keyframes particleFloat {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        .tech-grid {
+            background-image: 
+                linear-gradient(rgba(102, 126, 234, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(102, 126, 234, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+    </style>
+</head>
+<body class="min-h-screen relative overflow-x-hidden">
+    
+    <!-- Animated Background Particles -->
+    <div class="fixed inset-0 pointer-events-none">
+        <div class="particle" style="left: 10%; width: 4px; height: 4px; animation-delay: 0s;"></div>
+        <div class="particle" style="left: 20%; width: 6px; height: 6px; animation-delay: 2s;"></div>
+        <div class="particle" style="left: 30%; width: 3px; height: 3px; animation-delay: 4s;"></div>
+        <div class="particle" style="left: 40%; width: 5px; height: 5px; animation-delay: 1s;"></div>
+        <div class="particle" style="left: 50%; width: 4px; height: 4px; animation-delay: 3s;"></div>
+        <div class="particle" style="left: 60%; width: 6px; height: 6px; animation-delay: 5s;"></div>
+        <div class="particle" style="left: 70%; width: 3px; height: 3px; animation-delay: 2s;"></div>
+        <div class="particle" style="left: 80%; width: 5px; height: 5px; animation-delay: 4s;"></div>
+        <div class="particle" style="left: 90%; width: 4px; height: 4px; animation-delay: 1s;"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 glass-effect">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <img src="https://avatars.githubusercontent.com/u/212679102?s=400&u=22777bff9c391d64acdb13e7fa18fb9986a11ab4&v=4" 
+                         alt="Lumina Logo" class="w-10 h-10 rounded-full glow-effect">
+                    <div>
+                        <span class="font-bold text-xl text-white">Lumina Enterprise Solutions</span>
+                        <div class="text-xs text-slate-400">Enterprise-Grade Solutions</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <a href="https://github.com/Lumina-Enterprise-Solutions/prism-file-service/wiki" 
+                       target="_blank" 
+                       class="text-slate-300 hover:text-white transition-all duration-300 hover:scale-105">
+                        📚 Documentation
+                    </a>
+                    <a href="https://github.com/Lumina-Enterprise-Solutions/prism-file-service" 
+                       target="_blank" 
+                       class="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-4 py-2 rounded-full transition-all duration-300 hover:scale-105 glow-effect">
+                        🚀 GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="relative pt-32 pb-20 tech-grid">
+        <div class="container mx-auto px-6 text-center">
+            <div class="slide-up" style="animation-delay: 0.2s;">
+                <div class="floating-animation mb-8">
+                    <div class="inline-block p-6 rounded-full glass-effect pulse-glow">
+                        <img src="https://avatars.githubusercontent.com/u/212679102?s=400&u=22777bff9c391d64acdb13e7fa18fb9986a11ab4&v=4" 
+                             alt="Prism Logo" class="w-20 h-20 rounded-full">
+                    </div>
+                </div>
+                
+                <h1 class="text-6xl md:text-8xl font-black mb-6">
+                    <span class="gradient-text">Prism</span>
+                    <span class="text-white">File Service</span>
+                </h1>
+                
+                <p class="text-xl md:text-2xl text-slate-300 max-w-4xl mx-auto mb-4 leading-relaxed">
+                    The <span class="text-indigo-400 font-semibold">secure</span> and 
+                    <span class="text-purple-400 font-semibold">reliable</span> backbone for all platform files
+                </p>
+                
+                <p class="text-lg text-slate-400 max-w-3xl mx-auto mb-12">
+                    Enterprise-grade file management with flexible storage, rich metadata, and bulletproof security
+                </p>
+                
+                <div class="flex flex-col sm:flex-row justify-center gap-4 mb-16">
+                    <a href="https://github.com/Lumina-Enterprise-Solutions/prism-file-service" 
+                       target="_blank" 
+                       class="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-4 px-8 rounded-full transition-all duration-300 hover:scale-105 glow-effect">
+                        🚀 Explore Repository
+                    </a>
+                    <a href="https://github.com/Lumina-Enterprise-Solutions/prism-file-service/wiki" 
+                       target="_blank" 
+                       class="glass-effect text-white font-semibold py-4 px-8 rounded-full transition-all duration-300 hover:scale-105 border border-slate-600 hover:border-indigo-400">
+                        📖 Read Documentation
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Live Status Section -->
+    <section class="py-12">
+        <div class="container mx-auto px-6">
+            <div class="slide-up glass-effect rounded-2xl p-8" style="animation-delay: 0.4s;">
+                <div class="flex flex-wrap items-center justify-center gap-8">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                            <span class="font-bold text-lg text-white">System Status</span>
+                        </div>
+                        <span class="bg-green-500/20 text-green-400 px-4 py-2 rounded-full font-semibold border border-green-500/50">
+                            🟢 All Systems Operational
+                        </span>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-4">
+                        <img src="https://img.shields.io/github/actions/workflow/status/Lumina-Enterprise-Solutions/prism-file-service/ci.yml?branch=main&label=CI%2FCD&style=for-the-badge&logo=githubactions" 
+                             alt="CI/CD Status" class="rounded">
+                        <img src="https://img.shields.io/github/v/release/Lumina-Enterprise-Solutions/prism-file-service?style=for-the-badge&label=Latest%20Release&color=blue" 
+                             alt="Latest Release" class="rounded">
+                        <img src="https://img.shields.io/github/license/Lumina-Enterprise-Solutions/prism-file-service?style=for-the-badge" 
+                             alt="License" class="rounded">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Key Features Section -->
+    <section class="py-20">
+        <div class="container mx-auto px-6">
+            <div class="slide-up text-center mb-16" style="animation-delay: 0.6s;">
+                <h2 class="text-5xl font-bold text-white mb-4">
+                    <span class="gradient-text">Powerful</span> Features
+                </h2>
+                <p class="text-xl text-slate-400 max-w-3xl mx-auto">
+                    Built for scale, security, and performance with enterprise-grade architecture
+                </p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+                <!-- Feature 1 -->
+                <div class="slide-up glass-effect p-8 rounded-2xl hover:scale-105 transition-all duration-500 group" style="animation-delay: 0.8s;">
+                    <div class="text-5xl mb-6 group-hover:scale-110 transition-transform duration-300">💾</div>
+                    <h3 class="font-bold text-xl text-white mb-4">Flexible Storage</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        Pluggable backends including S3, Local Disk, and more. Scale from development to enterprise production seamlessly.
+                    </p>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <span class="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full text-sm">S3 Compatible</span>
+                        <span class="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-sm">Local Storage</span>
+                    </div>
+                </div>
+                
+                <!-- Feature 2 -->
+                <div class="slide-up glass-effect p-8 rounded-2xl hover:scale-105 transition-all duration-500 group" style="animation-delay: 1.0s;">
+                    <div class="text-5xl mb-6 group-hover:scale-110 transition-transform duration-300">🏷️</div>
+                    <h3 class="font-bold text-xl text-white mb-4">Rich Metadata</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        PostgreSQL-powered metadata and tagging system. Query, filter, and organize files with enterprise-grade database performance.
+                    </p>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <span class="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full text-sm">PostgreSQL</span>
+                        <span class="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-sm">Tagging</span>
+                    </div>
+                </div>
+                
+                <!-- Feature 3 -->
+                <div class="slide-up glass-effect p-8 rounded-2xl hover:scale-105 transition-all duration-500 group" style="animation-delay: 1.2s;">
+                    <div class="text-5xl mb-6 group-hover:scale-110 transition-transform duration-300">⚙️</div>
+                    <h3 class="font-bold text-xl text-white mb-4">Dynamic Config</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        Real-time configuration via HashiCorp Consul. Adjust file limits, MIME types, and policies without downtime.
+                    </p>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <span class="bg-orange-500/20 text-orange-300 px-3 py-1 rounded-full text-sm">Consul</span>
+                        <span class="bg-red-500/20 text-red-300 px-3 py-1 rounded-full text-sm">Hot Reload</span>
+                    </div>
+                </div>
+                
+                <!-- Feature 4 -->
+                <div class="slide-up glass-effect p-8 rounded-2xl hover:scale-105 transition-all duration-500 group" style="animation-delay: 1.4s;">
+                    <div class="text-5xl mb-6 group-hover:scale-110 transition-transform duration-300">🔒</div>
+                    <h3 class="font-bold text-xl text-white mb-4">Enterprise Security</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        JWT authentication, HashiCorp Vault integration, and Redis-based token management. Security-first architecture.
+                    </p>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <span class="bg-yellow-500/20 text-yellow-300 px-3 py-1 rounded-full text-sm">JWT</span>
+                        <span class="bg-cyan-500/20 text-cyan-300 px-3 py-1 rounded-full text-sm">Vault</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tech Stack Section -->
+    <section class="py-20">
+        <div class="container mx-auto px-6">
+            <div class="slide-up text-center mb-16" style="animation-delay: 1.6s;">
+                <h2 class="text-5xl font-bold text-white mb-4">
+                    <span class="gradient-text">Technology</span> Stack
+                </h2>
+                <p class="text-xl text-slate-400">Built with industry-leading technologies</p>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                <div class="glass-effect p-6 rounded-xl text-center hover:scale-105 transition-all duration-300">
+                    <div class="text-3xl mb-2">🐹</div>
+                    <div class="text-white font-semibold">Go</div>
+                    <div class="text-slate-400 text-sm">Backend</div>
+                </div>
+                <div class="glass-effect p-6 rounded-xl text-center hover:scale-105 transition-all duration-300">
+                    <div class="text-3xl mb-2">🐘</div>
+                    <div class="text-white font-semibold">PostgreSQL</div>
+                    <div class="text-slate-400 text-sm">Database</div>
+                </div>
+                <div class="glass-effect p-6 rounded-xl text-center hover:scale-105 transition-all duration-300">
+                    <div class="text-3xl mb-2">📦</div>
+                    <div class="text-white font-semibold">Redis</div>
+                    <div class="text-slate-400 text-sm">Cache</div>
+                </div>
+                <div class="glass-effect p-6 rounded-xl text-center hover:scale-105 transition-all duration-300">
+                    <div class="text-3xl mb-2">🏛️</div>
+                    <div class="text-white font-semibold">Vault</div>
+                    <div class="text-slate-400 text-sm">Secrets</div>
+                </div>
+                <div class="glass-effect p-6 rounded-xl text-center hover:scale-105 transition-all duration-300">
+                    <div class="text-3xl mb-2">⚙️</div>
+                    <div class="text-white font-semibold">Consul</div>
+                    <div class="text-slate-400 text-sm">Config</div>
+                </div>
+                <div class="glass-effect p-6 rounded-xl text-center hover:scale-105 transition-all duration-300">
+                    <div class="text-3xl mb-2">☁️</div>
+                    <div class="text-white font-semibold">S3</div>
+                    <div class="text-slate-400 text-sm">Storage</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Diagram -->
+    <section class="py-20">
+        <div class="container mx-auto px-6">
+            <div class="slide-up text-center mb-16" style="animation-delay: 1.8s;">
+                <h2 class="text-5xl font-bold text-white mb-4">
+                    <span class="gradient-text">System</span> Architecture
+                </h2>
+                <p class="text-xl text-slate-400">Clean, scalable, and maintainable design</p>
+            </div>
+            
+            <div class="glass-effect rounded-2xl p-8 overflow-x-auto">
+                <pre class="mermaid" style="background: transparent !important;">
+                    graph TB
+    %% External Layer
+    subgraph "🌐 Client Layer"
+        direction LR
+        WEB[🖥️ Web Frontend<br/>React/Vue/Angular]
+        MOBILE[📱 Mobile App<br/>iOS/Android]
+        API_CLIENT[🔧 API Client<br/>Third-party Integration]
+    end
+
+    %% Main Service
+    subgraph "🚀 Prism File Service"
+        direction TB
+        
+        %% Entry Point
+        MAIN[🎯 main.go<br/>Application Bootstrap<br/>• Server startup<br/>• Dependency injection<br/>• Graceful shutdown]
+        
+        %% API Gateway Layer
+        subgraph "🛡️ API Gateway Layer"
+            direction TB
+            ROUTER[🔀 HTTP Router<br/>Gin/Echo Framework]
+            AUTH[🔐 JWT Middleware<br/>• Token validation<br/>• Rate limiting<br/>• CORS handling]
+            LOGGER[📊 Request Logger<br/>Structured logging]
+        end
+        
+        %% Handler Layer
+        subgraph "🎮 Handler Layer"
+            direction LR
+            UPLOAD_H[⬆️ Upload Handler<br/>• Multipart parsing<br/>• Size validation<br/>• Type checking]
+            DOWNLOAD_H[⬇️ Download Handler<br/>• Stream response<br/>• Range support<br/>• Cache headers]
+            META_H[📋 Metadata Handler<br/>• File listing<br/>• Search & filter<br/>• Pagination]
+            DELETE_H[🗑️ Delete Handler<br/>• Soft delete<br/>• Batch operations<br/>• Cleanup jobs]
+        end
+        
+        %% Service Layer
+        subgraph "⚙️ Business Logic Layer"
+            direction TB
+            FILE_SVC[📁 File Service<br/>• Upload processing<br/>• Virus scanning<br/>• Thumbnail generation<br/>• Metadata extraction]
+            STORAGE_SVC[💾 Storage Service<br/>• Multi-backend support<br/>• Failover logic<br/>• Compression]
+            CACHE_SVC[⚡ Cache Service<br/>• Hot file caching<br/>• CDN integration<br/>• Cache invalidation]
+        end
+        
+        %% Storage Abstraction
+        subgraph "🗄️ Storage Abstraction Layer"
+            direction TB
+            STORAGE_IF[🔌 Storage Interface<br/>Go interface definition]
+            
+            subgraph "Storage Implementations"
+                direction LR
+                S3_IMPL[☁️ AWS S3<br/>• Multi-region<br/>• Encryption<br/>• Lifecycle policies]
+                LOCAL_IMPL[💿 Local Storage<br/>• High-speed SSD<br/>• RAID configuration<br/>• Backup jobs]
+                GCS_IMPL[🌥️ Google Cloud<br/>• Auto-scaling<br/>• Global CDN<br/>• AI integration]
+                MINIO_IMPL[🐋 MinIO<br/>• Self-hosted<br/>• S3 compatible<br/>• Kubernetes ready]
+            end
+        end
+        
+        %% Repository Layer
+        subgraph "🗃️ Data Access Layer"
+            direction TB
+            FILE_REPO[📊 File Repository<br/>• CRUD operations<br/>• Complex queries<br/>• Transaction support<br/>• Connection pooling]
+            USER_REPO[👤 User Repository<br/>• User management<br/>• Permission checks<br/>• Activity tracking]
+        end
+    end
+
+    %% Infrastructure Layer
+    subgraph "🏗️ Infrastructure & Dependencies"
+        direction TB
+        
+        subgraph "💾 Databases"
+            POSTGRES[🐘 PostgreSQL<br/>• File metadata<br/>• User data<br/>• Audit logs<br/>• Full-text search]
+            REDIS[🔴 Redis Cluster<br/>• JWT denylist<br/>• Session store<br/>• Hot cache<br/>• Pub/Sub messaging]
+        end
+        
+        subgraph "🔐 Security & Config"
+            VAULT[🏦 HashiCorp Vault<br/>• API keys<br/>• DB credentials<br/>• Encryption keys<br/>• Certificate management]
+            CONSUL[🗺️ HashiCorp Consul<br/>• Service discovery<br/>• Configuration<br/>• Health checks<br/>• Load balancing]
+        end
+        
+        subgraph "📈 Monitoring & Observability"
+            PROMETHEUS[📊 Prometheus<br/>• Metrics collection<br/>• Alert rules<br/>• Performance monitoring]
+            JAEGER[🔍 Jaeger<br/>• Distributed tracing<br/>• Request flow<br/>• Latency analysis]
+            ELK[📋 ELK Stack<br/>• Log aggregation<br/>• Search & analysis<br/>• Dashboards]
+        end
+        
+        subgraph "🌐 External Services"
+            CDN[🚀 CloudFlare CDN<br/>• Global edge cache<br/>• DDoS protection<br/>• SSL termination]
+            ANTIVIRUS[🛡️ ClamAV<br/>• Virus scanning<br/>• Malware detection<br/>• Quarantine system]
+            QUEUE[📮 Message Queue<br/>• Async processing<br/>• Job scheduling<br/>• Dead letter queue]
+        end
+    end
+
+    %% Data Flow Connections
+    WEB -.->|HTTPS/REST API| ROUTER
+    MOBILE -.->|HTTPS/REST API| ROUTER  
+    API_CLIENT -.->|HTTPS/REST API| ROUTER
+    
+    MAIN --> ROUTER
+    ROUTER --> AUTH
+    AUTH --> LOGGER
+    LOGGER --> UPLOAD_H
+    LOGGER --> DOWNLOAD_H
+    LOGGER --> META_H
+    LOGGER --> DELETE_H
+    
+    UPLOAD_H --> FILE_SVC
+    DOWNLOAD_H --> FILE_SVC
+    META_H --> FILE_SVC
+    DELETE_H --> FILE_SVC
+    
+    FILE_SVC --> STORAGE_SVC
+    FILE_SVC --> CACHE_SVC
+    FILE_SVC --> FILE_REPO
+    FILE_SVC --> USER_REPO
+    
+    STORAGE_SVC --> STORAGE_IF
+    STORAGE_IF --> S3_IMPL
+    STORAGE_IF --> LOCAL_IMPL
+    STORAGE_IF --> GCS_IMPL
+    STORAGE_IF --> MINIO_IMPL
+    
+    FILE_REPO --> POSTGRES
+    USER_REPO --> POSTGRES
+    CACHE_SVC --> REDIS
+    AUTH --> REDIS
+    
+    MAIN -.->|Secrets| VAULT
+    MAIN -.->|Config| CONSUL
+    
+    %% External integrations
+    FILE_SVC -.->|Virus Scan| ANTIVIRUS
+    FILE_SVC -.->|Async Jobs| QUEUE
+    STORAGE_SVC -.->|Global Cache| CDN
+    
+    %% Monitoring connections
+    ROUTER -.->|Metrics| PROMETHEUS
+    FILE_SVC -.->|Traces| JAEGER
+    LOGGER -.->|Logs| ELK
+
+    %% Styling
+    classDef clientClass fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    classDef serviceClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+    classDef handlerClass fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
+    classDef businessClass fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000
+    classDef storageClass fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
+    classDef dataClass fill:#e0f2f1,stroke:#00695c,stroke-width:2px,color:#000
+    classDef infraClass fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000
+    classDef monitorClass fill:#fff8e1,stroke:#ff8f00,stroke-width:2px,color:#000
+    classDef externalClass fill:#fafafa,stroke:#424242,stroke-width:2px,color:#000
+
+    class WEB,MOBILE,API_CLIENT clientClass
+    class MAIN,ROUTER,AUTH,LOGGER serviceClass
+    class UPLOAD_H,DOWNLOAD_H,META_H,DELETE_H handlerClass
+    class FILE_SVC,STORAGE_SVC,CACHE_SVC businessClass
+    class STORAGE_IF,S3_IMPL,LOCAL_IMPL,GCS_IMPL,MINIO_IMPL storageClass
+    class FILE_REPO,USER_REPO,POSTGRES dataClass
+    class REDIS,VAULT,CONSUL infraClass
+    class PROMETHEUS,JAEGER,ELK monitorClass
+    class CDN,ANTIVIRUS,QUEUE externalClass
+                </pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Start Section -->
+    <section class="py-20">
+        <div class="container mx-auto px-6">
+            <div class="slide-up text-center mb-16" style="animation-delay: 2.0s;">
+                <h2 class="text-5xl font-bold text-white mb-4">
+                    <span class="gradient-text">Quick</span> Start
+                </h2>
+                <p class="text-xl text-slate-400">Get up and running in minutes</p>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="glass-effect p-8 rounded-2xl">
+                    <h3 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                        <span class="text-3xl">🐳</span>
+                        Docker Setup
+                    </h3>
+                    <div class="bg-slate-900/50 p-4 rounded-lg font-mono text-sm">
+                        <div class="text-gray-400"># Clone the repository</div>
+                        <div class="text-green-400">git clone https://github.com/Lumina-Enterprise-Solutions/prism-file-service.git</div>
+                        <br>
+                        <div class="text-gray-400"># Start with Docker Compose</div>
+                        <div class="text-green-400">docker-compose up -d</div>
+                        <br>
+                        <div class="text-gray-400"># Service ready at http://localhost:8080</div>
+                    </div>
+                </div>
+                
+                <div class="glass-effect p-8 rounded-2xl">
+                    <h3 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                        <span class="text-3xl">🔧</span>
+                        Local Development
+                    </h3>
+                    <div class="bg-slate-900/50 p-4 rounded-lg font-mono text-sm">
+                        <div class="text-gray-400"># Install dependencies</div>
+                        <div class="text-green-400">go mod download</div>
+                        <br>
+                        <div class="text-gray-400"># Set environment variables</div>
+                        <div class="text-green-400">cp .env.example .env</div>
+                        <br>
+                        <div class="text-gray-400"># Run the service</div>
+                        <div class="text-green-400">go run main.go</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-16 border-t border-slate-800/50">
+        <div class="container mx-auto px-6">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+                <div class="flex items-center gap-4">
+                    <img src="https://avatars.githubusercontent.com/u/212679102?s=400&u=22777bff9c391d64acdb13e7fa18fb9986a11ab4&v=4" 
+                         alt="Lumina Logo" class="w-12 h-12 rounded-full glow-effect">
+                    <div>
+                        <div class="text-white font-bold text-xl">Lumina Enterprise Solutions</div>
+                        <div class="text-slate-400">Building the future of enterprise software</div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col md:flex-row items-center gap-6">
+                    <div class="flex gap-4">
+                        <a href="https://github.com/Lumina-Enterprise-Solutions" target="_blank" 
+                           class="text-slate-400 hover:text-white transition-colors">
+                            🐙 GitHub
+                        </a>
+                        <a href="https://github.com/Lumina-Enterprise-Solutions/prism-file-service/wiki" target="_blank" 
+                           class="text-slate-400 hover:text-white transition-colors">
+                            📚 Docs
+                        </a>
+                        <a href="https://github.com/Lumina-Enterprise-Solutions/prism-file-service/issues" target="_blank" 
+                           class="text-slate-400 hover:text-white transition-colors">
+                            🐛 Issues
+                        </a>
+                    </div>
+                    <div class="text-slate-500 text-sm">
+                        © 2025 Lumina Enterprise Solutions. All Rights Reserved.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                primaryColor: '#667eea',
+                primaryTextColor: '#ffffff',
+                primaryBorderColor: '#764ba2',
+                lineColor: '#667eea',
+                secondaryColor: '#f093fb',
+                tertiaryColor: '#4facfe',
+                background: 'transparent',
+                mainBkg: 'rgba(15, 15, 35, 0.8)',
+                secondBkg: 'rgba(102, 126, 234, 0.1)',
+                tertiaryBkg: 'rgba(118, 75, 162, 0.1)'
+            }
+        });
+        
+        // Add scroll-triggered animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animationPlayState = 'running';
+                }
+            });
+        }, observerOptions);
+        
+        document.querySelectorAll('.slide-up').forEach(el => {
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
