@@ -332,72 +332,163 @@
             
             <div class="glass-effect rounded-2xl p-8 overflow-x-auto">
                 <pre class="mermaid" style="background: transparent !important;">
-                    graph TD
-                        subgraph "🌐 Client Layer"
-                            Frontend[📱 Frontend/Mobile App<br/>React • Flutter • Web]
-                            API[🔌 REST API<br/>Upload • Download • Metadata]
-                        end
+                    graph TB
+    %% External Layer
+    subgraph "🌐 Client Layer"
+        direction LR
+        WEB[🖥️ Web Frontend<br/>React/Vue/Angular]
+        MOBILE[📱 Mobile App<br/>iOS/Android]
+        API_CLIENT[🔧 API Client<br/>Third-party Integration]
+    end
 
-                        subgraph "🚀 Prism File Service"
-                            subgraph "🎯 API Layer"
-                                Router[🛣️ HTTP Router<br/>Gin Framework]
-                                Auth[🔐 JWT Middleware<br/>Authentication]
-                                Handler[📋 File Handlers<br/>Upload • Download • Query]
-                            end
+    %% Main Service
+    subgraph "🚀 Prism File Service"
+        direction TB
+        
+        %% Entry Point
+        MAIN[🎯 main.go<br/>Application Bootstrap<br/>• Server startup<br/>• Dependency injection<br/>• Graceful shutdown]
+        
+        %% API Gateway Layer
+        subgraph "🛡️ API Gateway Layer"
+            direction TB
+            ROUTER[🔀 HTTP Router<br/>Gin/Echo Framework]
+            AUTH[🔐 JWT Middleware<br/>• Token validation<br/>• Rate limiting<br/>• CORS handling]
+            LOGGER[📊 Request Logger<br/>Structured logging]
+        end
+        
+        %% Handler Layer
+        subgraph "🎮 Handler Layer"
+            direction LR
+            UPLOAD_H[⬆️ Upload Handler<br/>• Multipart parsing<br/>• Size validation<br/>• Type checking]
+            DOWNLOAD_H[⬇️ Download Handler<br/>• Stream response<br/>• Range support<br/>• Cache headers]
+            META_H[📋 Metadata Handler<br/>• File listing<br/>• Search & filter<br/>• Pagination]
+            DELETE_H[🗑️ Delete Handler<br/>• Soft delete<br/>• Batch operations<br/>• Cleanup jobs]
+        end
+        
+        %% Service Layer
+        subgraph "⚙️ Business Logic Layer"
+            direction TB
+            FILE_SVC[📁 File Service<br/>• Upload processing<br/>• Virus scanning<br/>• Thumbnail generation<br/>• Metadata extraction]
+            STORAGE_SVC[💾 Storage Service<br/>• Multi-backend support<br/>• Failover logic<br/>• Compression]
+            CACHE_SVC[⚡ Cache Service<br/>• Hot file caching<br/>• CDN integration<br/>• Cache invalidation]
+        end
+        
+        %% Storage Abstraction
+        subgraph "🗄️ Storage Abstraction Layer"
+            direction TB
+            STORAGE_IF[🔌 Storage Interface<br/>Go interface definition]
+            
+            subgraph "Storage Implementations"
+                direction LR
+                S3_IMPL[☁️ AWS S3<br/>• Multi-region<br/>• Encryption<br/>• Lifecycle policies]
+                LOCAL_IMPL[💿 Local Storage<br/>• High-speed SSD<br/>• RAID configuration<br/>• Backup jobs]
+                GCS_IMPL[🌥️ Google Cloud<br/>• Auto-scaling<br/>• Global CDN<br/>• AI integration]
+                MINIO_IMPL[🐋 MinIO<br/>• Self-hosted<br/>• S3 compatible<br/>• Kubernetes ready]
+            end
+        end
+        
+        %% Repository Layer
+        subgraph "🗃️ Data Access Layer"
+            direction TB
+            FILE_REPO[📊 File Repository<br/>• CRUD operations<br/>• Complex queries<br/>• Transaction support<br/>• Connection pooling]
+            USER_REPO[👤 User Repository<br/>• User management<br/>• Permission checks<br/>• Activity tracking]
+        end
+    end
 
-                            subgraph "💼 Business Layer"
-                                Service[⚡ File Service<br/>Business Logic • Validation]
-                                Processor[🔄 File Processor<br/>Metadata Extraction]
-                            end
-                            
-                            subgraph "💾 Storage Layer"
-                                StorageInterface[🔧 Storage Interface<br/>Pluggable Architecture]
-                                S3Storage[☁️ S3 Storage<br/>AWS • MinIO • Compatible]
-                                LocalStorage[💿 Local Storage<br/>Development • Testing]
-                            end
+    %% Infrastructure Layer
+    subgraph "🏗️ Infrastructure & Dependencies"
+        direction TB
+        
+        subgraph "💾 Databases"
+            POSTGRES[🐘 PostgreSQL<br/>• File metadata<br/>• User data<br/>• Audit logs<br/>• Full-text search]
+            REDIS[🔴 Redis Cluster<br/>• JWT denylist<br/>• Session store<br/>• Hot cache<br/>• Pub/Sub messaging]
+        end
+        
+        subgraph "🔐 Security & Config"
+            VAULT[🏦 HashiCorp Vault<br/>• API keys<br/>• DB credentials<br/>• Encryption keys<br/>• Certificate management]
+            CONSUL[🗺️ HashiCorp Consul<br/>• Service discovery<br/>• Configuration<br/>• Health checks<br/>• Load balancing]
+        end
+        
+        subgraph "📈 Monitoring & Observability"
+            PROMETHEUS[📊 Prometheus<br/>• Metrics collection<br/>• Alert rules<br/>• Performance monitoring]
+            JAEGER[🔍 Jaeger<br/>• Distributed tracing<br/>• Request flow<br/>• Latency analysis]
+            ELK[📋 ELK Stack<br/>• Log aggregation<br/>• Search & analysis<br/>• Dashboards]
+        end
+        
+        subgraph "🌐 External Services"
+            CDN[🚀 CloudFlare CDN<br/>• Global edge cache<br/>• DDoS protection<br/>• SSL termination]
+            ANTIVIRUS[🛡️ ClamAV<br/>• Virus scanning<br/>• Malware detection<br/>• Quarantine system]
+            QUEUE[📮 Message Queue<br/>• Async processing<br/>• Job scheduling<br/>• Dead letter queue]
+        end
+    end
 
-                            subgraph "🗃️ Data Layer"
-                                Repository[📊 File Repository<br/>Data Access Layer]
-                                Cache[⚡ Cache Layer<br/>Performance Optimization]
-                            end
-                        end
+    %% Data Flow Connections
+    WEB -.->|HTTPS/REST API| ROUTER
+    MOBILE -.->|HTTPS/REST API| ROUTER  
+    API_CLIENT -.->|HTTPS/REST API| ROUTER
+    
+    MAIN --> ROUTER
+    ROUTER --> AUTH
+    AUTH --> LOGGER
+    LOGGER --> UPLOAD_H
+    LOGGER --> DOWNLOAD_H
+    LOGGER --> META_H
+    LOGGER --> DELETE_H
+    
+    UPLOAD_H --> FILE_SVC
+    DOWNLOAD_H --> FILE_SVC
+    META_H --> FILE_SVC
+    DELETE_H --> FILE_SVC
+    
+    FILE_SVC --> STORAGE_SVC
+    FILE_SVC --> CACHE_SVC
+    FILE_SVC --> FILE_REPO
+    FILE_SVC --> USER_REPO
+    
+    STORAGE_SVC --> STORAGE_IF
+    STORAGE_IF --> S3_IMPL
+    STORAGE_IF --> LOCAL_IMPL
+    STORAGE_IF --> GCS_IMPL
+    STORAGE_IF --> MINIO_IMPL
+    
+    FILE_REPO --> POSTGRES
+    USER_REPO --> POSTGRES
+    CACHE_SVC --> REDIS
+    AUTH --> REDIS
+    
+    MAIN -.->|Secrets| VAULT
+    MAIN -.->|Config| CONSUL
+    
+    %% External integrations
+    FILE_SVC -.->|Virus Scan| ANTIVIRUS
+    FILE_SVC -.->|Async Jobs| QUEUE
+    STORAGE_SVC -.->|Global Cache| CDN
+    
+    %% Monitoring connections
+    ROUTER -.->|Metrics| PROMETHEUS
+    FILE_SVC -.->|Traces| JAEGER
+    LOGGER -.->|Logs| ELK
 
-                        subgraph "🏗️ Infrastructure"
-                            DB[(🐘 PostgreSQL<br/>Metadata • Relationships)]
-                            RedisCache[(📦 Redis<br/>JWT Denylist • Sessions)]
-                            Vault[🏛️ HashiCorp Vault<br/>Secrets Management)]
-                            Consul[⚙️ HashiCorp Consul<br/>Dynamic Configuration)]
-                            Storage[(☁️ Storage Backend<br/>S3 • Local • Network)]
-                        end
+    %% Styling
+    classDef clientClass fill:#e1f5fe,stroke:#0277bd,stroke-width:2px,color:#000
+    classDef serviceClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+    classDef handlerClass fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
+    classDef businessClass fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000
+    classDef storageClass fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
+    classDef dataClass fill:#e0f2f1,stroke:#00695c,stroke-width:2px,color:#000
+    classDef infraClass fill:#f1f8e9,stroke:#558b2f,stroke-width:2px,color:#000
+    classDef monitorClass fill:#fff8e1,stroke:#ff8f00,stroke-width:2px,color:#000
+    classDef externalClass fill:#fafafa,stroke:#424242,stroke-width:2px,color:#000
 
-                        %% Connections
-                        Frontend --> API
-                        API --> Router
-                        Router --> Auth
-                        Auth --> Handler
-                        Handler --> Service
-                        Service --> Processor
-                        Service --> Repository
-                        Service --> StorageInterface
-                        StorageInterface --> S3Storage
-                        StorageInterface --> LocalStorage
-                        Repository --> Cache
-                        Cache --> DB
-                        Repository --> DB
-                        Auth --> RedisCache
-                        Service --> Vault
-                        Service --> Consul
-                        S3Storage --> Storage
-                        LocalStorage --> Storage
-
-                        %% Styling
-                        classDef clientStyle fill:#667eea,stroke:#764ba2,stroke-width:2px,color:#fff
-                        classDef serviceStyle fill:#f093fb,stroke:#f5576c,stroke-width:2px,color:#fff
-                        classDef infraStyle fill:#4facfe,stroke:#00f2fe,stroke-width:2px,color:#fff
-                        
-                        class Frontend,API clientStyle
-                        class Router,Auth,Handler,Service,Processor,StorageInterface,S3Storage,LocalStorage,Repository,Cache serviceStyle
-                        class DB,RedisCache,Vault,Consul,Storage infraStyle
+    class WEB,MOBILE,API_CLIENT clientClass
+    class MAIN,ROUTER,AUTH,LOGGER serviceClass
+    class UPLOAD_H,DOWNLOAD_H,META_H,DELETE_H handlerClass
+    class FILE_SVC,STORAGE_SVC,CACHE_SVC businessClass
+    class STORAGE_IF,S3_IMPL,LOCAL_IMPL,GCS_IMPL,MINIO_IMPL storageClass
+    class FILE_REPO,USER_REPO,POSTGRES dataClass
+    class REDIS,VAULT,CONSUL infraClass
+    class PROMETHEUS,JAEGER,ELK monitorClass
+    class CDN,ANTIVIRUS,QUEUE externalClass
                 </pre>
             </div>
         </div>
