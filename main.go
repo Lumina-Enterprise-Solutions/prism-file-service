@@ -23,6 +23,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog/log" // Import log untuk digunakan di defer
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
@@ -34,15 +35,12 @@ func loadSecretsFromVault(vaultAddr, vaultToken string) (fileserviceconfig.S3Con
 	}
 
 	secretPath := "secret/data/prism"
-
-	// FIX: Tambahkan kembali "jwt_secret_key" ke daftar rahasia yang wajib dimuat
 	requiredSecrets := []string{"database_url", "jwt_secret_key", "s3_region", "s3_endpoint", "s3_access_key", "s3_secret_key", "s3_bucket"}
 	secretsMap, err := vaultClient.ReadMultipleSecrets(secretPath, requiredSecrets...)
 	if err != nil {
 		return fileserviceconfig.S3Config{}, err
 	}
 
-	// Buat S3Config dari map
 	s3Config := fileserviceconfig.S3Config{
 		Region:    secretsMap["s3_region"],
 		Endpoint:  secretsMap["s3_endpoint"],
@@ -51,9 +49,13 @@ func loadSecretsFromVault(vaultAddr, vaultToken string) (fileserviceconfig.S3Con
 		Bucket:    secretsMap["s3_bucket"],
 	}
 
-	// Set env var yang dibutuhkan oleh proses lain (seperti DB pool)
-	os.Setenv("DATABASE_URL", secretsMap["database_url"])
-	os.Setenv("JWT_SECRET_KEY", secretsMap["jwt_secret_key"])
+	// FIX: Periksa error dari os.Setenv
+	if err := os.Setenv("DATABASE_URL", secretsMap["database_url"]); err != nil {
+		return fileserviceconfig.S3Config{}, fmt.Errorf("gagal set env var DATABASE_URL: %w", err)
+	}
+	if err := os.Setenv("JWT_SECRET_KEY", secretsMap["jwt_secret_key"]); err != nil {
+		return fileserviceconfig.S3Config{}, fmt.Errorf("gagal set env var JWT_SECRET_KEY: %w", err)
+	}
 
 	return s3Config, nil
 }
@@ -85,14 +87,12 @@ func main() {
 		vaultToken = "root-token-for-dev"
 	}
 
-	// FIX: Panggil setupDependencies untuk mendapatkan pool DB dan S3 config
 	dbpool, s3Config, err := setupDependencies(vaultAddr, vaultToken)
 	if err != nil {
 		serviceLogger.Fatal().Err(err).Msg("Gagal menginisialisasi dependensi dari Vault")
 	}
 	defer dbpool.Close()
 
-	// FIX: Panggil Load dengan s3Config yang sudah didapat
 	cfg := fileserviceconfig.Load(s3Config)
 
 	enhanced_logger.LogStartup(cfg.ServiceName, cfg.Port, map[string]interface{}{
@@ -104,7 +104,12 @@ func main() {
 	if err != nil {
 		serviceLogger.Fatal().Err(err).Msg("Gagal menginisialisasi OTel tracer provider")
 	}
-	defer tp.Shutdown(context.Background())
+	// FIX: Periksa error di dalam defer
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Error().Err(err).Msg("Gagal mematikan tracer provider dengan benar")
+		}
+	}()
 
 	var fileStorage storage.Storage
 	switch cfg.StorageBackend {
@@ -124,7 +129,12 @@ func main() {
 		redisAddr = "cache-redis:6379"
 	}
 	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
-	defer redisClient.Close()
+	// FIX: Periksa error di dalam defer
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			log.Error().Err(err).Msg("Gagal menutup koneksi Redis dengan benar")
+		}
+	}()
 
 	fileRepo := repository.NewPostgresFileRepository(dbpool)
 	fileService := service.NewFileService(fileRepo, fileStorage, cfg)
@@ -147,7 +157,6 @@ func main() {
 		}
 	}
 
-	// === Registrasi Service & Graceful Shutdown ===
 	regInfo := client.ServiceRegistrationInfo{
 		ServiceName:    cfg.ServiceName,
 		ServiceID:      fmt.Sprintf("%s-%d", cfg.ServiceName, cfg.Port),
