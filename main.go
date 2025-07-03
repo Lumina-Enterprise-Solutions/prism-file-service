@@ -104,8 +104,8 @@ func main() {
 	if err != nil {
 		serviceLogger.Fatal().Err(err).Msg("Gagal menginisialisasi OTel tracer provider")
 	}
-	// FIX: Periksa error di dalam defer
 	defer func() {
+		// FIX: Periksa error saat mematikan tracer provider
 		if err := tp.Shutdown(context.Background()); err != nil {
 			log.Error().Err(err).Msg("Gagal mematikan tracer provider dengan benar")
 		}
@@ -129,8 +129,8 @@ func main() {
 		redisAddr = "cache-redis:6379"
 	}
 	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
-	// FIX: Periksa error di dalam defer
 	defer func() {
+		// FIX: Periksa error saat menutup koneksi Redis
 		if err := redisClient.Close(); err != nil {
 			log.Error().Err(err).Msg("Gagal menutup koneksi Redis dengan benar")
 		}
@@ -150,7 +150,7 @@ func main() {
 	{
 		fileRoutes.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "healthy"}) })
 		protected := fileRoutes.Group("/")
-		protected.Use(auth.JWTMiddleware(redisClient))
+		protected.Use(auth.JWTMiddleware(redisClient)) // FIX: Suntikkan redisClient
 		{
 			protected.POST("/upload", fileHandler.UploadFile)
 			protected.GET("/:id", fileHandler.DownloadFile)
@@ -161,7 +161,7 @@ func main() {
 		ServiceName:    cfg.ServiceName,
 		ServiceID:      fmt.Sprintf("%s-%d", cfg.ServiceName, cfg.Port),
 		Port:           cfg.Port,
-		HealthCheckURL: fmt.Sprintf("http://localhost:%d/files/health", cfg.Port),
+		HealthCheckURL: fmt.Sprintf("http://%s:%d/files/health", cfg.ServiceName, cfg.Port),
 	}
 	consul, err := client.RegisterService(regInfo)
 	if err != nil {

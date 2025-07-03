@@ -11,6 +11,7 @@ COPY services/prism-auth-service/go.mod ./services/prism-auth-service/
 COPY services/prism-user-service/go.mod ./services/prism-user-service/
 COPY services/prism-notification-service/go.mod ./services/prism-notification-service/
 COPY services/prism-file-service/go.mod ./services/prism-file-service/
+COPY services/prism-invitation-service/go.mod ./services/prism-invitation-service/
 
 # Download dependensi agar bisa di-cache
 # Kita perlu menjalankan `go mod tidy` di dalam service-nya dulu

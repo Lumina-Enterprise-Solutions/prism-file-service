@@ -52,12 +52,11 @@ func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader
 		return nil, fmt.Errorf("failed to open file for validation: %w", err)
 	}
 	defer func() {
+		// ## PERBAIKAN 3.3.1 ##: Periksa error saat menutup file
 		if closeErr := file.Close(); closeErr != nil {
-			// Jika belum ada error lain, jadikan ini error utama.
 			if err == nil {
 				err = fmt.Errorf("gagal menutup file multipart: %w", closeErr)
 			} else {
-				// Jika sudah ada error, log ini sebagai peringatan.
 				log.Warn().Err(closeErr).Msg("Gagal menutup file multipart setelah error sebelumnya.")
 			}
 		}
@@ -96,8 +95,8 @@ func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader
 
 	if err = s.storage.Save(ctx, storageFileName, file); err != nil {
 		log.Error().Err(err).Str("file_id", metadata.ID).Msg("Gagal menyimpan file ke storage. Rollback metadata...")
-		if rollbackErr := s.repo.DeleteByID(context.Background(), metadata.ID); rollbackErr != nil {
-			log.Fatal().Err(rollbackErr).Str("file_id", metadata.ID).Msg("FATAL: METADATA ROLLBACK FAILED.")
+		if rollbackErr := s.repo.DeleteByID(ctx, metadata.ID); rollbackErr != nil {
+			log.Fatal().Err(rollbackErr).Str("file_id", metadata.ID).Msg("FATAL: METADATA ROLLBACK FAILED. INCONSISTENT STATE.")
 		}
 		return nil, fmt.Errorf("failed to save file content: %w", err)
 	}
