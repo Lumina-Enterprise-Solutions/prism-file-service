@@ -96,7 +96,7 @@ func (s *fileService) UploadFile(ctx context.Context, ownerID string, fileHeader
 
 	if err = s.storage.Save(ctx, storageFileName, file); err != nil {
 		log.Error().Err(err).Str("file_id", metadata.ID).Msg("Gagal menyimpan file ke storage. Rollback metadata...")
-		if rollbackErr := s.repo.DeleteByID(context.Background(), metadata.ID); rollbackErr != nil {
+		if rollbackErr := s.repo.DeleteByID(ctx, metadata.ID); rollbackErr != nil {
 			log.Fatal().Err(rollbackErr).Str("file_id", metadata.ID).Msg("FATAL: METADATA ROLLBACK FAILED.")
 		}
 		return nil, fmt.Errorf("failed to save file content: %w", err)
