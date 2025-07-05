@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/Lumina-Enterprise-Solutions/prism-file-service/internal/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log" // Import log untuk digunakan di defer
 	ginprometheus "github.com/zsais/go-gin-prometheus"
@@ -58,6 +60,36 @@ func loadSecretsFromVault(vaultAddr, vaultToken string) (fileserviceconfig.S3Con
 	}
 
 	return s3Config, nil
+}
+
+func createThumbnailJobHandler(fs service.FileService) func(delivery amqp091.Delivery) {
+	return func(delivery amqp091.Delivery) {
+		jobLogger := log.With().Str("consumer_tag", delivery.ConsumerTag).Logger()
+		jobLogger.Info().Msg("Menerima job pembuatan thumbnail")
+
+		var event service.FileUploadedEvent
+		if err := json.Unmarshal(delivery.Body, &event); err != nil {
+			jobLogger.Error().Err(err).Msg("Gagal unmarshal payload job, pesan akan di-reject (Nack)")
+			if err := delivery.Nack(false, false); err != nil {
+				jobLogger.Error().Err(err).Msg("Gagal Nack pesan yang korup")
+			}
+			return
+		}
+
+		// Panggil service untuk memproses thumbnail
+		if err := fs.ProcessImageThumbnails(context.Background(), event); err != nil {
+			jobLogger.Error().Err(err).Str("file_id", event.FileID).Msg("Gagal memproses thumbnail, pesan akan di-reject (Nack)")
+			if err := delivery.Nack(false, false); err != nil {
+				jobLogger.Error().Err(err).Msg("Gagal Nack pesan yang gagal diproses")
+			}
+			return
+		}
+
+		jobLogger.Info().Str("file_id", event.FileID).Msg("Thumbnail berhasil diproses")
+		if err := delivery.Ack(false); err != nil {
+			jobLogger.Error().Err(err).Msg("Gagal Ack pesan yang berhasil diproses")
+		}
+	}
 }
 
 func setupDependencies(vaultAddr, vaultToken string) (*pgxpool.Pool, fileserviceconfig.S3Config, error) {
@@ -136,8 +168,39 @@ func main() {
 		}
 	}()
 
+	amqpURL := cfg.RabbitMQURL
+	if amqpURL == "" {
+		serviceLogger.Warn().Msg("RABBITMQ_URL tidak diset, thumbnail worker tidak akan berjalan.")
+	}
+
+	var conn *amqp091.Connection
+	var ch *amqp091.Channel
+
+	if amqpURL != "" {
+		var err error
+		conn, err = amqp091.Dial(amqpURL)
+		if err != nil {
+			serviceLogger.Fatal().Err(err).Msg("Gagal terhubung ke RabbitMQ")
+		}
+		defer func() {
+			if err := conn.Close(); err != nil {
+				serviceLogger.Error().Err(err).Msg("Gagal menutup koneksi RabbitMQ dengan benar")
+			}
+		}()
+
+		ch, err = conn.Channel()
+		if err != nil {
+			serviceLogger.Fatal().Err(err).Msg("Gagal membuka channel RabbitMQ")
+		}
+		defer func() {
+			if err := ch.Close(); err != nil {
+				serviceLogger.Error().Err(err).Msg("Gagal menutup channel RabbitMQ dengan benar")
+			}
+		}()
+	}
+
 	fileRepo := repository.NewPostgresFileRepository(dbpool)
-	fileService := service.NewFileService(fileRepo, fileStorage, cfg)
+	fileService := service.NewFileService(fileRepo, fileStorage, cfg, ch)
 	fileHandler := handler.NewFileHandler(fileService)
 
 	portStr := strconv.Itoa(cfg.Port)
@@ -155,6 +218,16 @@ func main() {
 			protected.POST("/upload", fileHandler.UploadFile)
 			protected.GET("/:id", fileHandler.DownloadFile)
 		}
+	}
+	if ch != nil {
+		go func() {
+			handler := createThumbnailJobHandler(fileService)
+			err := service.StartThumbnailWorker(ch, handler)
+			if err != nil {
+				serviceLogger.Fatal().Err(err).Msg("Thumbnail worker berhenti karena error")
+			}
+		}()
+		serviceLogger.Info().Msg("Thumbnail processing worker dimulai")
 	}
 
 	regInfo := client.ServiceRegistrationInfo{

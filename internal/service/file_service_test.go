@@ -106,39 +106,53 @@ func TestFileService_UploadFile(t *testing.T) {
 	ownerID := "test-user-123"
 
 	testCases := []struct {
-		name          string
-		fileContent   string
-		fileName      string
-		tags          []string // Tambahkan tags
-		config        *fileserviceconfig.Config
+		name        string
+		fileContent string
+		fileName    string
+		tags        []string
+		// Config sekarang akan diambil dari variabel di atas, bukan didefinisikan per kasus
 		setupMock     func(mockRepo *MockFileRepository, mockStore *MockStorage)
 		expectError   bool
 		expectedError string
 	}{
 		{
 			name:        "Success - Valid PNG file with tags",
-			fileContent: "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR...",
+			fileContent: "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR...", // Konten PNG minimal
 			fileName:    "test.png",
 			tags:        []string{"avatar", "profile"},
-			config:      testConfig,
 			setupMock: func(mockRepo *MockFileRepository, mockStore *MockStorage) {
 				mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.FileMetadata"), []string{"avatar", "profile"}).Return(nil).Once()
 				mockStore.On("Save", mock.Anything, mock.AnythingOfType("string"), mock.Anything).Return(nil).Once()
 			},
 			expectError: false,
 		},
-		// ... (Kasus uji lain tetap sama, hanya perlu menambahkan `tags`)
+		{
+			name:          "Error - File too large",
+			fileContent:   "file content is too large",
+			fileName:      "large.txt",
+			tags:          nil,
+			setupMock:     nil, // Tidak ada mock yang perlu dipanggil
+			expectError:   true,
+			expectedError: "exceeds the limit",
+		},
+		{
+			name:          "Error - MIME type not allowed",
+			fileContent:   "<html><body>hello</body></html>",
+			fileName:      "test.html",
+			tags:          nil,
+			setupMock:     nil, // Tidak ada mock yang perlu dipanggil
+			expectError:   true,
+			expectedError: "is not allowed",
+		},
 		{
 			name:        "Error - Database fails to save metadata",
 			fileContent: "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR...",
 			fileName:    "test.png",
 			tags:        nil,
-			config:      testConfig,
 			setupMock: func(mockRepo *MockFileRepository, mockStore *MockStorage) {
 				mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.FileMetadata"), mock.Anything).
 					Return(errors.New("database connection lost")).
 					Once()
-				// Save tidak akan dipanggil
 			},
 			expectError:   true,
 			expectedError: "gagal menyimpan metadata file",
@@ -153,17 +167,23 @@ func TestFileService_UploadFile(t *testing.T) {
 				tc.setupMock(mockRepo, mockStore)
 			}
 
-			// FIX: Inisialisasi service dengan field `storage` yang baru
-			service := &fileService{
-				repo:    mockRepo,
-				storage: mockStore,
-				cfg:     tc.config,
+			// FIX: Gunakan config yang sudah diinisialisasi
+			service := NewFileService(mockRepo, mockStore, testConfig, nil)
+
+			// Untuk kasus file terlalu besar, kita perlu membuat header dengan ukuran palsu
+			var fileHeader *multipart.FileHeader
+			var err error
+			if tc.name == "Error - File too large" {
+				// Buat file header dummy dengan ukuran besar
+				fileHeader = &multipart.FileHeader{
+					Filename: tc.fileName,
+					Size:     testConfig.MaxFileSizeBytes + 1, // Pastikan lebih besar dari limit
+				}
+			} else {
+				fileHeader, err = createTestFileHeader(tc.fileContent, tc.fileName)
+				require.NoError(t, err)
 			}
 
-			fileHeader, err := createTestFileHeader(tc.fileContent, tc.fileName)
-			assert.NoError(t, err)
-
-			// FIX: Panggil UploadFile dengan argumen tags
 			metadata, err := service.UploadFile(context.Background(), ownerID, fileHeader, tc.tags)
 
 			if tc.expectError {
@@ -242,7 +262,7 @@ func TestFileService_GetFileMetadata(t *testing.T) {
 		},
 		{
 			name:          "Failure - Role without tag access",
-			claims:        nonOwnerClaims, // User biasa mencoba akses file keuangan
+			claims:        nonOwnerClaims,
 			expectedError: ErrAccessDenied,
 			setupMock: func(mockRepo *MockFileRepository) {
 				mockRepo.On("GetByID", ctx, fileID).Return(fileWithTags, nil).Once()
@@ -264,10 +284,11 @@ func TestFileService_GetFileMetadata(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockRepo := new(MockFileRepository)
-			mockStore := new(MockStorage) // Diperlukan untuk inisialisasi service
+			mockStore := new(MockStorage)
 			tc.setupMock(mockRepo)
 
-			svc := NewFileService(mockRepo, mockStore, &fileserviceconfig.Config{})
+			// FIX: Gunakan config yang valid, meskipun tidak digunakan secara langsung di sini, ini adalah praktik yang baik.
+			svc := NewFileService(mockRepo, mockStore, &fileserviceconfig.Config{}, nil)
 			metadata, err := svc.GetFileMetadata(ctx, fileID, tc.claims)
 
 			if tc.expectError {
@@ -286,7 +307,7 @@ func TestFileService_GetFileMetadata(t *testing.T) {
 // BARU: Tambahkan tes untuk GetFileReader
 func TestFileService_GetFileReader(t *testing.T) {
 	mockStore := new(MockStorage)
-	svc := NewFileService(nil, mockStore, &fileserviceconfig.Config{})
+	svc := NewFileService(nil, mockStore, &fileserviceconfig.Config{}, nil)
 	path := "test/file.txt"
 
 	// Mock akan mengembalikan reader string dan tidak ada error

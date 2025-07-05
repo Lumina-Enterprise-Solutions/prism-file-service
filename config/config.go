@@ -29,6 +29,8 @@ type Config struct {
 	JaegerEndpoint      string
 	StorageBackend      string
 	S3Config            S3Config
+	// BARU: Menambahkan URL RabbitMQ untuk koneksi ke message broker.
+	RabbitMQURL string
 }
 
 // FIX: Load sekarang menerima S3Config sebagai parameter
@@ -65,13 +67,15 @@ func Load(s3Config S3Config) *Config {
 
 	return &Config{
 		ServiceName:         serviceName,
-		Port:                loader.GetInt(fmt.Sprintf("%s/port", serviceName), 8080),
+		Port:                loader.GetInt(fmt.Sprintf("%s/port", pathPrefix), 8080),
 		MaxFileSizeBytes:    maxSizeBytes,
 		AllowedMimeTypesMap: allowedTypesMap,
 		VaultAddr:           os.Getenv("VAULT_ADDR"),
 		VaultToken:          os.Getenv("VAULT_TOKEN"),
 		JaegerEndpoint:      loader.Get("config/global/jaeger_endpoint", "jaeger:4317"),
 		StorageBackend:      storageBackend,
-		S3Config:            finalS3Config, // Gunakan struct yang sudah diisi
+		S3Config:            finalS3Config,
+		// BARU: Memuat URL RabbitMQ dari environment variable.
+		RabbitMQURL: os.Getenv("RABBITMQ_URL"),
 	}
 }
