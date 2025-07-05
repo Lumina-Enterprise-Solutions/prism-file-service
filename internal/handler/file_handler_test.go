@@ -221,3 +221,9 @@ func TestFileHandler_DownloadFile(t *testing.T) {
 		})
 	}
 }
+
+// BARU: Tambahkan implementasi mock untuk metode yang hilang.
+func (m *MockFileService) ProcessImageThumbnails(ctx context.Context, event service.FileUploadedEvent) error {
+	args := m.Called(ctx, event)
+	return args.Error(0)
+}
